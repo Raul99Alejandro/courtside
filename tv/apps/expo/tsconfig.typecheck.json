@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "noEmit": true,
+    "paths": {
+      "@courtside/core": ["../../../src/core/index.ts"],
+      "@courtside/shared": ["../../packages/shared/src/index.ts"],
+      // packages/shared has no node_modules of its own (nmHoistingLimits: workspaces), so resolve
+      // its bare imports from apps/expo, where every dependency is installed
+      "*": ["node_modules/@types/*", "node_modules/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "../../packages/shared/src/**/*"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/__tests__/**"]
+}

@@ -13,7 +13,7 @@
     "lint": "expo lint",
     "prebuild": "EXPO_TV=1 expo prebuild --clean",
     "clean": "node -e \"require('fs').rmSync('node_modules',{recursive:true,force:true})\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.typecheck.json"
   },
   "jest": {
     "preset": "jest-expo",
@@ -23,6 +23,12 @@
   },
   "dependencies": {
     "@courtside/shared": "workspace:*",
+    "@expo-google-fonts/archivo": "^0.4.2",
+    "@expo-google-fonts/atkinson-hyperlegible": "^0.4.1",
+    "@expo-google-fonts/barlow-condensed": "^0.4.1",
+    "@expo-google-fonts/big-shoulders-display": "^0.2.3",
+    "@expo-google-fonts/kalam": "^0.4.1",
+    "@expo-google-fonts/source-sans-3": "^0.4.1",
     "@expo/metro-runtime": "~4.0.0",
     "@expo/vector-icons": "^14.0.0",
     "@react-navigation/drawer": "^7.0.0",
@@ -48,6 +54,7 @@
     "react-native-reanimated": "3.19.5",
     "react-native-safe-area-context": "~5.4.0",
     "react-native-screens": "^4.24.0",
+    "react-native-svg": "15.12.1",
     "react-native-web": "~0.19.10",
     "react-tv-space-navigation": "6.0.0-beta1"
   },

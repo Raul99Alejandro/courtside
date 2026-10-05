@@ -11,6 +11,9 @@ config.watchFolders = [
   path.resolve(__dirname, '../..'),
   // courtside/src/core: the pure TypeScript domain core, shared with the repo root
   path.resolve(__dirname, '../../../src/core'),
+  // generated moments (git-ignored) and committed cards, imported as JSON by shared
+  path.resolve(__dirname, '../../../build'),
+  path.resolve(__dirname, '../../../cards'),
 ];
 
 config.resolver = {

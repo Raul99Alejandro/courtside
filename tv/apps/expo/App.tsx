@@ -4,6 +4,12 @@ import { useEffect } from 'react';
 import { AppNavigator } from '@courtside/shared';
 import { LogBox } from 'react-native';
 import '../../packages/shared/src/app/configureRemoteControl';
+import { BarlowCondensed_700Bold } from '@expo-google-fonts/barlow-condensed';
+import { AtkinsonHyperlegible_400Regular, AtkinsonHyperlegible_700Bold } from '@expo-google-fonts/atkinson-hyperlegible';
+import { Kalam_700Bold } from '@expo-google-fonts/kalam';
+import { Archivo_400Regular, Archivo_700Bold, Archivo_800ExtraBold } from '@expo-google-fonts/archivo';
+import { BigShouldersDisplay_800ExtraBold } from '@expo-google-fonts/big-shoulders-display';
+import { SourceSans3_400Regular, SourceSans3_600SemiBold } from '@expo-google-fonts/source-sans-3';
 
 // Suppress specific deprecation warnings that don't affect functionality
 // These warnings come from libraries using deprecated React methods
@@ -33,7 +39,16 @@ SplashScreen.preventAutoHideAsync();
 
 export default function App() {
   const [loaded, error] = useFonts({
-    SpaceMono: require('./assets/fonts/SpaceMono-Regular.ttf'),
+    BarlowCondensed_700Bold,
+    AtkinsonHyperlegible_400Regular,
+    AtkinsonHyperlegible_700Bold,
+    Kalam_700Bold,
+    Archivo_400Regular,
+    Archivo_700Bold,
+    Archivo_800ExtraBold,
+    BigShouldersDisplay_800ExtraBold,
+    SourceSans3_400Regular,
+    SourceSans3_600SemiBold,
   });
 
   useEffect(() => {

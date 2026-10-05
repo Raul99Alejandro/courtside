@@ -4,16 +4,9 @@
     "jsx": "react-jsx",
     "strict": true,
     "paths": {
-      "@/*": [
-        "./*"
-      ],
-      "@courtside/core": [
-        "../../../src/core/index.ts"
-      ]
+      "@/*": ["./*"],
+      "@courtside/core": ["../../../src/core/index.ts"]
     }
   },
-  "include": [
-    "**/*.ts",
-    "**/*.tsx"
-  ]
+  "include": ["**/*.ts", "**/*.tsx"]
 }
