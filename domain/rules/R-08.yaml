@@ -5,7 +5,7 @@ kind: deterministic
 source: "spec 2026-10-04 §4 (gap)"
 examples:
   - id: R-08-a
-    status: proposed
+    status: approved
     given: { present: [{ name: Leo, layer: basic }, { name: Ana, layer: basic }, { name: Raul, layer: tactical }] }
     when: { moment: shown }
     then: { rows: [{ layer: basic, viewers: [Leo, Ana] }, { layer: tactical, viewers: [Raul] }] }

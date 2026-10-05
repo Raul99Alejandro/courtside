@@ -1,16 +1,16 @@
 id: R-06
 rule: A Question is answered on the TV at the Layer of the Viewer whose phone asked it, and is labelled with that Viewer's name.
-status: proposed
+status: approved
 kind: deterministic
-source: "owner, chat 2026-10-04: sabe quién preguntó y le responde a su nivel"
+source: "owner, chat 2026-10-04: sabe quién preguntó y le responde a su nivel; approved: owner, chat 2026-10-05"
 examples:
   - id: R-06-a
-    status: proposed
+    status: approved
     given: { present: [{ name: Leo, level: beginner }, { name: Raul, level: expert }], phone_of: Leo }
     when: { question: "Why did the referee stop play?" }
     then: { answer_layer: basic, label: Leo }
   - id: R-06-b
-    status: proposed
+    status: approved
     given: { phone_paired: true, viewer_chosen: false }
     when: { question: "What is a corner?" }
     then: { accepted: false, phone_shows: "Pick who you are first" }

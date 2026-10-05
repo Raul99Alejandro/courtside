@@ -1,16 +1,16 @@
 id: R-03
 rule: A Concept a Viewer has understood is not re-explained to them in basic unless they ask.
-status: proposed
+status: approved
 kind: deterministic
-source: "owner, chat 2026-10-04: no se lo repite, le explica algo nuevo"
+source: "owner, chat 2026-10-04: no se lo repite, le explica algo nuevo; approved: owner, chat 2026-10-05"
 examples:
   - id: R-03-a
-    status: proposed
+    status: approved
     given: { viewer: { name: Ana, level: beginner, understood: [offside] } }
     when: { moment: { concepts: [offside] } }
     then: { basic_row_for_Ana: false, offer: "Why?" }
   - id: R-03-b
-    status: proposed
+    status: approved
     given: { viewer: { name: Ana, level: beginner, understood: [offside] } }
     when: { moment: { concepts: [offside] }, ana_asks: "What is offside again?" }
     then: { answer_layer: basic }

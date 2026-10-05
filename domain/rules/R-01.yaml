@@ -1,21 +1,21 @@
 id: R-01
 rule: Every Moment teaches at least one Concept from the catalogue.
-status: proposed
+status: approved
 kind: deterministic
-source: "spec 2026-10-04 §6"
+source: "spec 2026-10-04 §6; approved: owner, chat 2026-10-05"
 examples:
   - id: R-01-a
-    status: proposed
+    status: approved
     given: { event: { type: Shot, shot_type: Penalty, outcome: Goal } }
     when: { curate: true }
     then: { concepts: [penalty kick] }
   - id: R-01-b
-    status: proposed
+    status: approved
     given: { event: { type: Pass, outcome: Pass Offside } }
     when: { curate: true }
     then: { concepts: [offside] }
   - id: R-01-c
-    status: proposed
+    status: approved
     given: { event: { type: Foul Committed, card: Yellow Card } }
     when: { curate: true }
     then: { concepts: [yellow card] }

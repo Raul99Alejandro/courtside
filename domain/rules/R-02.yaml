@@ -1,21 +1,21 @@
 id: R-02
 rule: A Viewer sees the Layer of their Level (beginner=basic, fan=intermediate, expert=tactical), but a beginner who already understood the Moment's Concept moves up to intermediate for that Moment.
-status: proposed
+status: approved
 kind: deterministic
-source: "owner, chat 2026-10-04: perfiles que aprenden, explicación en capas"
+source: "owner, chat 2026-10-04: perfiles que aprenden, explicación en capas; approved: owner, chat 2026-10-05"
 examples:
   - id: R-02-a
-    status: proposed
+    status: approved
     given: { viewer: { name: Leo, level: beginner, understood: [] } }
     when: { moment: { concepts: [offside] } }
     then: { layer: basic }
   - id: R-02-b
-    status: proposed
+    status: approved
     given: { viewer: { name: Ana, level: beginner, understood: [offside] } }
     when: { moment: { concepts: [offside] } }
     then: { layer: intermediate }
   - id: R-02-c
-    status: proposed
+    status: approved
     given: { viewer: { name: Raul, level: expert, understood: [] } }
     when: { moment: { concepts: [offside] } }
     then: { layer: tactical }

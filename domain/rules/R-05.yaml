@@ -1,16 +1,16 @@
 id: R-05
 rule: Every card row states only computed facts, defines any jargon in the basic layer, stays within its word limit, never shows coordinates, and never uses FIFA or "World Cup" marks.
-status: proposed
+status: approved
 kind: ai-behavior
-source: "RC-8 (Nova slips), spec 2026-10-04 §2 (no FIFA marks)"
+source: "RC-8 (Nova slips), spec 2026-10-04 §2 (no FIFA marks); approved: owner, chat 2026-10-05"
 examples:
   - id: R-05-a
-    status: proposed
+    status: approved
     given: { moment: { minute: 107, score_before: { Argentina: 2, France: 2 }, effect: "puts Argentina ahead 3-2" } }
     when: { generate: intermediate }
     then: { must_mention: "3-2", must_not_mention: ["ties", "levels"] }
   - id: R-05-b
-    status: proposed
+    status: approved
     given: { moment: { concepts: [offside] } }
     when: { generate: basic }
     then: { defines: offside, max_words: 28, must_not_mention: ["World Cup", "FIFA", "["] }
