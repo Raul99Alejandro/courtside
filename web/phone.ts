@@ -101,11 +101,23 @@ let held = false;
 let starting = false; // a recorder is being set up: a second press must not start another
 let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** Why the mic cannot be used, in words a viewer can act on. */
+function micProblem(err: unknown): string {
+  if (!window.isSecureContext) return 'Microphone needs a secure (https) page.';
+  if (!navigator.mediaDevices?.getUserMedia) return 'This browser cannot use the microphone here - open the link in Safari or Chrome.';
+  if (typeof MediaRecorder === 'undefined') return 'This browser cannot record audio - update iOS or type your question.';
+  const name = (err as { name?: string })?.name ?? 'Error';
+  if (name === 'NotAllowedError') return 'Microphone permission is off - allow it in Settings > Safari > Microphone (or the aA menu > Website Settings).';
+  if (name === 'NotFoundError') return 'No microphone found.';
+  return `Microphone not available (${name}) - type your question instead.`;
+}
+
 async function startTalk() {
   if (held || starting) return;
   held = true;
   starting = true;
   try {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('unsupported');
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     if (!held) { stream.getTracks().forEach(t => t.stop()); return; } // let go before the mic was ready
     const type = ['audio/mp4', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t));
@@ -116,15 +128,15 @@ async function startTalk() {
       stream.getTracks().forEach(t => t.stop());
       recorder = undefined;
       held = false;
-      $('talk').textContent = 'Hold to ask';
+      $('talk').textContent = 'Tap to ask';
       if (chunks.length) void sendAudio(new Blob(chunks, { type: rec.mimeType }));
     };
     recorder = rec;
     rec.start();
     text(msg, 'Listening...');
-    $('talk').textContent = 'Listening - let go to send';
+    $('talk').textContent = 'Listening - tap to send';
     stopTimer = setTimeout(stopTalk, MAX_RECORD_MS);
-  } catch { held = false; text(msg, 'Microphone not available - type your question instead.'); }
+  } catch (err) { held = false; text(msg, micProblem(err)); }
   finally { starting = false; }
 }
 
@@ -135,9 +147,8 @@ function stopTalk() {
 }
 
 const talk = $('talk');
-talk.addEventListener('pointerdown', e => { e.preventDefault(); void startTalk(); });
-['pointerup', 'pointercancel', 'pointerleave'].forEach(n => talk.addEventListener(n, stopTalk));
-talk.addEventListener('contextmenu', e => e.preventDefault());
+// Tap to start, tap to send: more reliable on iOS than hold-to-talk (the permission sheet cancels pointer holds).
+talk.addEventListener('click', () => { if (recorder && recorder.state === 'recording') stopTalk(); else void startTalk(); });
 
 $('join').onclick = () => void join();
 $('addme').onclick = () => void addMe();
