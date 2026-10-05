@@ -1,4 +1,4 @@
-import { composeCard, layerFor, DEFINITIONS as CONCEPT_DEFINITIONS, type Layer, type Moment, type Viewer } from '@courtside/core';
+import { composeCard, layerFor, lowestLayer, DEFINITIONS as CONCEPT_DEFINITIONS, type Layer, type Moment, type Viewer } from '@courtside/core';
 
 export type Cards = Record<string, Record<Layer, string>>;
 
@@ -20,4 +20,13 @@ export function cardRowsFor(moment: Moment, present: Viewer[], cards: Cards): Ca
   return composeCard(present.map(v => ({ name: v.name, layer: layerFor(v, moment.concepts) }))).map(
     ({ layer, viewers }) => ({ layer, viewers, text: card?.[layer] ?? fallbackText(moment) }),
   );
+}
+
+/**
+ * R-08-b: "Why?" has no known asker, so it answers at the lowest layer among the rows on screen.
+ * Basic gets the canonical definitions; a higher layer gets that layer's card line.
+ */
+export function whyAnswer(moment: Moment, rows: CardRow[], cards: Cards): { layer: Layer; text: string } {
+  const layer = lowestLayer(rows.map(r => r.layer));
+  return { layer, text: layer === 'basic' ? fallbackText(moment) : (cards[moment.id]?.[layer] ?? fallbackText(moment)) };
 }

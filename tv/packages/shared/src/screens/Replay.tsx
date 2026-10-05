@@ -3,8 +3,9 @@ import { useIsFocused } from '@react-navigation/native';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { DefaultFocus, SpatialNavigationNode, SpatialNavigationRoot } from 'react-tv-space-navigation';
-import { DEFINITIONS as CONCEPT_DEFINITIONS, markGotIt, scarfIndex, undoPromotion, type Moment, type Viewer } from '@courtside/core';
-import { cardRowsFor } from '../data/match';
+import { markGotIt, scarfIndex, undoPromotion, type Moment, type Viewer } from '@courtside/core';
+import { cardRowsFor, whyAnswer } from '../data/match';
+import { SHOWN_DWELL_MS, scheduleDwell } from '../data/dwell';
 import { CARDS, MATCH, MOMENTS } from '../data/matchData';
 import { HOUSEHOLD, householdIndex } from '../data/demo-household';
 import { useLive } from '../live';
@@ -123,7 +124,8 @@ export default function Replay({ levelUpDemo }: ReplayProps) {
     setWhy(false);
   }, []);
   const { onShown } = model;
-  useEffect(() => onShown(moment), [moment.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // R-04: a basic explanation counts as shown only after the moment stayed on screen for 3 s; leaving earlier cancels it.
+  useEffect(() => scheduleDwell(SHOWN_DWELL_MS, () => onShown(moment)), [moment.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const gotIt = useCallback(() => model.gotIt(rows.find(r => r.layer === 'basic')?.viewers ?? [], moment), [rows, moment, model]);
   const undo = model.undo;
 
@@ -159,7 +161,7 @@ export default function Replay({ levelUpDemo }: ReplayProps) {
               <CardRows rows={rows} dense={dense} indexOf={model.indexOf} />
               {why && (
                 <Text style={{ fontFamily: theme.font.bodyBold, fontSize: px(30), lineHeight: px(40), color: c.accent, marginTop: px(16) }}>
-                  {moment.concepts.map(k => CONCEPT_DEFINITIONS[k]).join(' ')}
+                  {whyAnswer(moment, rows, CARDS).text}
                 </Text>
               )}
               <View style={{ flex: 1, justifyContent: 'flex-end' }}>

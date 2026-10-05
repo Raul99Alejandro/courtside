@@ -1,172 +1,187 @@
 {
   "25548b02-1dca-44b0-a1a5-d97f63a69fbd": {
-    "basic": "Offside is when a player closer to the goal than the ball and second-last defender joins play as a teammate passes. De Paul's pass was ruled offside.",
-    "intermediate": "In minute 2, with the score level, De Paul's pass in the attacking third was ruled offside for Argentina.",
-    "tactical": "With a lone defender between the ball and goal and two opponents pressing, De Paul's pass into the box was cut short by an offside call at 0-0."
+    "basic": "Offside is being in the opponents' half, closer to their goal than the ball and second-last defender when a teammate passes. De Paul's pass was ruled offside.",
+    "intermediate": "De Paul played a pass in the attacking third in minute 2, but it was ruled offside, match level at 0-0.",
+    "tactical": "With only one defender between the attacker and goal and two opponents pressing the ball, De Paul's pass into the centre found the lone attacker in an offside position at 0-0."
   },
   "545c2c84-018f-4570-a01c-753823feaeac": {
-    "basic": "A shot on goal heads toward the net, so it scores or the keeper must stop it. A save is when the keeper stops a shot heading in. Mac Allister's shot was saved.",
+    "basic": "A shot on goal heads into the net, so it scores or the keeper stops it. A save is when the keeper stops a shot heading in. Mac Allister shot and the keeper saved it.",
     "intermediate": "Mac Allister tested the France goalkeeper with a shot from the centre of the attacking third in minute 4, with the score level at 0-0.",
-    "tactical": "With no defenders between Mac Allister and goal, his shot from 29 yards was still comfortably held by the keeper, leaving the 0-0 scoreline unchanged early on."
+    "tactical": "Mac Allister's shot from 29 yards out with no defenders between ball and goal was saved, leaving the 0-0 scoreline unchanged early in the match."
   },
   "4ad26294-8aaf-4d69-83dd-bbf9ef797b32": {
-    "basic": "A shot is an attempt to score by kicking or heading the ball toward the opponents' goal. De Paul attempted to score but a defender blocked it.",
-    "intermediate": "De Paul fired a shot from the centre of the attacking third in minute 7, but it was blocked, leaving the score at 0-0.",
-    "tactical": "With four Argentina attackers in the penalty area and the nearest opponent within five yards, De Paul's shot from 22 yards was blocked despite no defender directly between the ball and goal."
+    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. De Paul's shot was blocked.",
+    "intermediate": "De Paul tested France with a shot from the centre of the attacking third in minute 7, still 0-0, but it was blocked.",
+    "tactical": "With four Argentina attackers in the penalty area and De Paul only 22 yards out, one opponent nearby and no defenders between ball and goal, the block kept it level at 0-0."
   },
   "2a0ff535-d44f-4838-a372-140631fb6184": {
-    "basic": "Offside is when a player closer to the opponent's goal than the ball and the second-last defender joins play as a teammate passes. Tagliafico's pass was ruled offside.",
-    "intermediate": "Tagliafico played a pass in the attacking third in minute 13, but it was ruled offside. The score stayed 0-0.",
-    "tactical": "With a teammate beyond the last defender and two attackers in the penalty area, Tagliafico's pass at 0-0 was ruled offside, leaving Argentina's attack in the left channel without reward."
+    "basic": "Offside means being in the opponents' half, closer to their goal than the ball and second-last defender, when a teammate passes. Tagliafico's pass was ruled offside.",
+    "intermediate": "Tagliafico's pass in the attacking third was ruled offside at minute 13, with the match level at 0-0.",
+    "tactical": "With only one defender between the attackers and the goal at 0-0, Argentina had two forwards in the box but the pass was ruled offside, halting the move."
   },
   "6d498191-05f0-432c-8764-03aea4ef9fb8": {
     "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Di María attempted to score but sent it off target.",
-    "intermediate": "Di María fired at goal from inside the penalty area in minute 16, but the shot went off target with the score level at 0-0.",
-    "tactical": "With no defender between the ball and goal and four attackers in the box, Di María's shot from 18 yards off target was a clear chance wasted at 0-0."
-  },
-  "6d527ebc-a948-4cd8-ac82-daced35bb715": {
-    "basic": "A penalty kick is a free shot from the penalty spot, given for a foul inside the defenders' own area. Messi scored one, putting Argentina 1-0 up.",
-    "intermediate": "Messi converted a penalty kick in minute 22 to give Argentina a 1-0 lead against France.",
-    "tactical": "With no defenders between ball and goal and no opponent within yards of the spot, Messi converted unopposed from 12 yards to lead 1-0."
-  },
-  "d49e9601-1cbf-4df7-9a77-16877abe49dc": {
-    "basic": "Offside is when a player closer to the goal than the ball and second-last defender joins play from a pass. Messi was flagged offside on the right.",
-    "intermediate": "Messi was caught offside in the attacking third on the right in the 29th minute, with Argentina leading 1-0.",
-    "tactical": "With four attackers in the box and no defenders between ball and goal, Argentina's lead held as Messi was ruled offside at 1-0, with sixteen minutes left in the half."
+    "intermediate": "Di María fired at goal from inside the penalty area in the 16th minute, but the shot went off target with the score level at 0-0.",
+    "tactical": "With no defenders between ball and goal and four attackers in the box, Di María's shot from 18 yards still failed to trouble the keeper, leaving the match scoreless."
   },
   "f227a92e-d86c-4f3d-aa75-5ccb71adcae6": {
-    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Mac Allister's shot went wide.",
-    "intermediate": "Mac Allister fired wide from the left side in the 31st minute, with Argentina leading 1-0.",
-    "tactical": "With Argentina protecting a lead and 14 minutes left in the half, Mac Allister's shot from 31 yards out went wide despite one defender between him and goal and no support in the box."
+    "basic": "A shot is an attempt to score by kicking or heading the ball toward the opponents' goal. Mac Allister attempted to score but the ball went wide.",
+    "intermediate": "Mac Allister shot from the left side of the attacking third in the 31st minute, with Argentina leading 1-0, but the ball went wide.",
+    "tactical": "With Argentina protecting a lead and 14 minutes left in the half, Mac Allister fired wide from 31 yards out, with two opponents closing and no teammates in the penalty area to threaten a rebound."
   },
   "ed70825d-8a40-470d-8b30-fd315ab5f0a6": {
     "basic": "An assist is the final pass that sets up a teammate to score. Mac Allister's pass here set up Di María's goal, making it 2-0.",
-    "intermediate": "Mac Allister played the pass in the attacking third that set up Di María's goal, putting Argentina 2-0 up in minute 35.",
-    "tactical": "With no defenders between ball and goal and one opponent close, Mac Allister's pass from 26 yards out on the right unlocked the France backline to make it 2-0."
+    "intermediate": "Mac Allister played the pass in the attacking third that assisted Di María's goal, putting Argentina 2-0 up in minute 35.",
+    "tactical": "With no defenders between ball and goal from 26 yards out, Mac Allister's assist found Di María in acres of space, doubling Argentina's lead just before half-time."
   },
   "ef86f4d9-7acd-4ed0-a5ec-9129079e8fbe": {
     "basic": "A goal is scored when the whole ball crosses the goal line between the posts. Di María scored to make it 2-0.",
-    "intermediate": "Di María scored inside the penalty area in minute 35, putting Argentina 2-0 up in the first half.",
-    "tactical": "With no defenders between ball and goal and no opponent within five yards, Di María converted unmarked from close range, making it 2-0 with ten minutes left in the half."
+    "intermediate": "Di María finished inside the penalty area in minute 35, putting Argentina 2-0 up in the first half.",
+    "tactical": "With no defender between ball and goal from eleven yards out, Di María converted with ease, giving Argentina a 2-0 lead with ten minutes left in the half."
   },
   "af8c7775-091a-4905-aeb3-484b9a99de81": {
-    "basic": "A yellow card is the referee's official warning to a player for misconduct. Enzo Fernandez was warned for a foul in midfield.",
-    "intermediate": "Enzo Fernandez was booked for a foul in midfield at minute 51, with Argentina leading France 2-0.",
-    "tactical": "Argentina were protecting a 2-0 lead when Fernandez picked up a yellow card for a midfield foul, leaving him a booking away from suspension."
+    "basic": "A yellow card is the referee's official warning to a player for misconduct. Enzo Fernandez was given a yellow card for a foul in midfield.",
+    "intermediate": "Enzo Fernandez was booked for a foul in midfield in the 51st minute, with Argentina leading France 2-0.",
+    "tactical": "Argentina were protecting a 2-0 lead when Fernandez picked up a yellow card for a foul in midfield, leaving him one booking from suspension."
   },
   "13a4889d-ad08-41be-9125-24c4c7d7879a": {
-    "basic": "A shot on goal heads into the net, so it scores or the keeper must stop it. A save is when the keeper stops it. De Paul shot and the keeper saved it.",
-    "intermediate": "De Paul got on the end of a chance inside the penalty area in the 48th minute, with Argentina leading 2-0, but the goalkeeper saved his shot.",
-    "tactical": "With no defenders between De Paul and goal and four attackers in the box at 2-0, the keeper had to make the stop alone from close range."
+    "basic": "A shot on goal heads into the net, so it scores or the keeper must stop it. A save is when the keeper stops a shot heading in. De Paul shot and the keeper saved it.",
+    "intermediate": "De Paul shot from inside the penalty area in the 48th minute, with Argentina leading 2-0, but the France goalkeeper saved it.",
+    "tactical": "With no defenders between De Paul and the goal from 21 yards out, Argentina could not convert at 2-0, leaving four attackers in the box without reward."
   },
   "5683007d-fde4-40ee-aa5e-c1624424b24e": {
-    "basic": "A yellow card is the referee's official warning to a player for misconduct. Rabiot received one for a foul in midfield.",
-    "intermediate": "Rabiot was booked for a foul in the left side of midfield in the 54th minute, with France trailing 2-0.",
-    "tactical": "Rabiot picked up a booking while chasing a two-goal deficit, leaving France with over half an hour remaining and one caution closer to being reduced to ten men."
+    "basic": "A yellow card is the referee's official warning to a player for misconduct. Rabiot was shown one for a foul in midfield.",
+    "intermediate": "Rabiot picked up a yellow card for a foul in midfield at minute 54, with France trailing 2-0.",
+    "tactical": "Rabiot collected a booking while France chased a two-goal deficit, leaving him one misconduct from suspension with 36 minutes still to play."
   },
   "43691970-1dad-4e11-bd29-48f640c55ea1": {
-    "basic": "A shot on goal heads into the net, so it scores or the keeper must stop it. A save is when the keeper stops a shot heading in. Álvarez shot and the goalkeeper saved it.",
-    "intermediate": "Álvarez got a shot off from the left side of the penalty area in the 58th minute, but the goalkeeper saved it. Argentina still led 2-0.",
-    "tactical": "With no defenders between Álvarez and goal from eighteen yards, the goalkeeper's save kept the score at 2-0, denying Argentina a third with over half an hour left."
+    "basic": "A shot on goal heads into the net, so it scores or the keeper must stop it. A save is when the keeper stops it. Álvarez shot and was saved.",
+    "intermediate": "Álvarez fired a shot from inside the left of the penalty area at 2-0 to Argentina in the 58th minute, but the goalkeeper saved it.",
+    "tactical": "Álvarez found space with no defenders between him and goal from about 18 yards, but the keeper held firm, leaving Argentina's two-goal lead intact with half an hour left."
+  },
+  "be78b6e9-2f19-4620-9e4b-b518bd562537": {
+    "basic": "Offside is being nearer the opponents' goal than the ball and second-last defender when a teammate passes. Hernández's pass was ruled offside.",
+    "intermediate": "Hernández's pass from the left in midfield was flagged offside at minute 58, with France trailing 2-0.",
+    "tactical": "France, chasing a two-goal deficit with 32 minutes left, had no attackers in the box when the offside was called, leaving them a man short in the most dangerous zone at 2-0."
   },
   "9f6285ff-9b32-4a46-a4a0-74c1ca89276c": {
-    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Kolo Muani shot but missed the target.",
-    "intermediate": "Kolo Muani fired at goal from inside the penalty area at minute 67, but his shot went off target, with France trailing 2-0.",
-    "tactical": "France were chasing the game with 23 minutes left, and with no defenders between Kolo Muani and goal from just 9 yards out, the off-target effort wasted a clear chance to cut the deficit."
+    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Kolo Muani shot but sent it off target.",
+    "intermediate": "Kolo Muani fired at goal from inside the penalty area at minute 67, but missed the target with France trailing 2-0.",
+    "tactical": "With no defender between ball and goal from 9 yards out and seven attackers in the box, Kolo Muani could not convert, leaving France still two goals down with over twenty minutes left."
   },
   "b2d43671-a3e6-4709-9c0c-646442c1074c": {
-    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Mbappé shot at goal but the ball went off target.",
-    "intermediate": "Mbappé fired from inside the penalty area in the 70th minute, but his shot missed the target, leaving France still trailing 2-0.",
-    "tactical": "With no defender between Mbappé and the goal, four attackers in the box, and three opponents within five yards, the ball still went off target, leaving France two goals behind with twenty minutes left."
+    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Mbappé shot toward the Argentina goal but went off target.",
+    "intermediate": "Mbappé fired from inside the penalty area in the 70th minute, but his shot went off target, leaving France still trailing 2-0.",
+    "tactical": "With no defenders between the ball and goal and four attackers in the box, Mbappé's effort from roughly 21 yards still failed to trouble the keeper, France trailing by two with twenty minutes left."
   },
   "6cc0d5e2-6999-4006-8a7a-34de4cbe3ffd": {
-    "basic": "A penalty kick is a free shot from the penalty spot, given for a foul inside the defenders' own area. Mbappé scored one for France.",
-    "intermediate": "Mbappé converted a penalty for France in the 79th minute, pulling it back to 2-1 against Argentina.",
-    "tactical": "With eleven minutes left and France chasing, Mbappé converted from the spot at 2-1, unopposed at twelve yards with no defenders between ball and goal."
+    "basic": "A penalty kick is a free shot from the penalty spot, given for a foul inside the defenders' own penalty area. Mbappé scored one for France.",
+    "intermediate": "Mbappé converted a penalty for France at minute 79, pulling it back to 2-1 against Argentina.",
+    "tactical": "With eleven minutes left and France chasing the match, Mbappé converted from twelve yards with no defenders between ball and goal, cutting the deficit to 2-1."
   },
   "7b1441f1-4911-44d7-ac4b-f3f8f11daa76": {
-    "basic": "An assist is the final pass that sets up a teammate to score. Thuram's pass set up Mbappé's goal.",
-    "intermediate": "Thuram played the pass in the attacking third at minute 80 that led directly to Mbappé equalising, making it 2-2.",
-    "tactical": "With France chasing the match and a lone defender between ball and goal, Thuram's central pass unlocked the penalty area, delivering the assist that levelled it at 2-2."
+    "basic": "An assist is the final pass that sets up a teammate to score. Thuram's pass here set up Mbappé's goal.",
+    "intermediate": "Thuram played the pass in the attacking third at minute 80 that set up Mbappé to score, levelling the match at 2-2.",
+    "tactical": "Thuram threaded the assist with one defender between ball and goal and France chasing the match, unlocking the equaliser from roughly 25 yards out."
   },
   "03fb2918-e1e7-4ec8-89ff-7bc5531e853d": {
-    "basic": "A goal is scored when the whole ball crosses the line between the posts. Mbappé scored for France.",
-    "intermediate": "Mbappé scored for France in minute 80, levelling the match at 2-2 with his shot from central penalty area.",
-    "tactical": "With no defenders between ball and goal and two attackers in the box, Mbappé converted from 18 yards to pull France level at 2-2, with ten minutes left."
+    "basic": "A goal is scored when the whole ball crosses the line between the posts. Mbappé scored for France, levelling the match 2-2.",
+    "intermediate": "Mbappé scored for France in minute 80 to level the match at 2-2, pulling France back into the 2022 final.",
+    "tactical": "With no defenders between Mbappé and the goal from 18 yards out, his finish levelled the 2022 final at 2-2 with ten minutes left in the half."
   },
   "fe277079-395a-4ff3-bb29-e99d93014014": {
     "basic": "A shot is an attempt to score by kicking or heading the ball toward the opponents' goal. Enzo Fernandez attempted a shot, but it was blocked.",
-    "intermediate": "Enzo Fernandez fired a shot from the centre of the attacking third at 2-2 in minute 83, but a defender blocked it.",
-    "tactical": "At 2-2 with seven minutes left, Fernandez shot from 28 yards out with one defender between the ball and goal, and that defender made the block count."
+    "intermediate": "Enzo Fernandez fired a shot from central position in the attacking third at 2-2, but a defender blocked it in the 83rd minute.",
+    "tactical": "With the match level and seven minutes left, Fernandez's shot from 28 yards was blocked by the lone defender between the ball and goal, leaving the score at 2-2."
   },
   "8f75db1a-1ee2-4ff8-b211-1c46d9a76a69": {
     "basic": "A yellow card is the referee's official warning to a player for misconduct. Thuram received one for a foul inside Argentina's penalty area.",
-    "intermediate": "Thuram was booked for a foul in Argentina's penalty area in minute 86, with the score level at 2-2.",
-    "tactical": "With six French attackers in the box and the match level, Thuram's booking inside Argentina's area at 2-2 left France a man warned, four minutes from the end of normal time."
+    "intermediate": "Thuram was shown a yellow card for a foul inside Argentina's penalty area in minute 86, with the score level at 2-2.",
+    "tactical": "With the score level and four minutes left, Thuram committed a foul inside the box with six France attackers present, a packed penalty area that raised the stakes of the infringement."
   },
   "22fea401-6836-45bb-bfbd-fadd4ed0b237": {
-    "basic": "Offside is when a player, closer to the opponents' goal than the ball and the second-last defender, receives a pass. Upamecano's pass in midfield was ruled offside.",
-    "intermediate": "Upamecano's pass from midfield was ruled offside at 90 minutes, with the match level at 2-2.",
-    "tactical": "With the match level and only one defender between the intended receiver and goal, Upamecano's offside pass from 67 yards out surrendered possession at the death."
+    "basic": "Offside is being in the opponents' half, closer to their goal than the ball and second-last opponent when a teammate passes. Upamecano's pass was ruled offside.",
+    "intermediate": "Upamecano's pass in midfield was ruled offside at 90 minutes, with the match level at 2-2.",
+    "tactical": "With the match level and one defender between the receiving attacker and goal, Upamecano's offside pass in midfield ended France's final attacking move of normal time."
   },
   "5dbcde3d-ba75-483d-a65f-72d2b99ff713": {
-    "basic": "A shot is an attempt to score by kicking or heading toward the goal. Mbappé attempted to score but was blocked.",
-    "intermediate": "Mbappé fired at goal in minute 92 with the score level at 2-2, but a defender blocked his shot.",
-    "tactical": "With the match level and one defender between Mbappé and goal, his shot from 25 yards out was smothered, two opponents closing as he struck."
+    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Mbappé attempted to score but a defender blocked it.",
+    "intermediate": "Mbappé fired at goal in the centre of the attacking third in minute 92, with the score level at 2-2, but a defender blocked it.",
+    "tactical": "With the match level and one defender between Mbappé and goal at 25 yards out, two opponents closing and only one attacker in the box, the blocked shot reflected how congested the central channel was."
   },
   "867b8791-49c0-4d98-a976-c0b4cfc1cb5a": {
-    "basic": "A shot on goal heads into the net, so it scores or the keeper must stop it. A save is when the keeper stops a shot heading in. Messi shot at goal and the keeper saved it.",
-    "intermediate": "Messi shot from the centre of the attacking third in the 96th minute, with the score at 2-2, but the French goalkeeper saved it.",
-    "tactical": "At 2-2 in the final seconds of the period, Messi's shot from 24 yards out was saved, with a defender between the ball and the goal and two opponents closing him down."
+    "basic": "A shot on goal heads into the net, so it scores or the keeper must stop it. A save is when the keeper stops it. Messi shot and the keeper saved it.",
+    "intermediate": "With the score level at 2-2, Messi shot from the centre in minute 96 but the France goalkeeper saved it.",
+    "tactical": "At 2-2 with the period effectively over, Messi's shot from 24 yards was saved, but a defender between ball and goal and two opponents closing meant the chance was well-covered."
   },
   "4b295434-7285-4337-95b4-26395b799643": {
     "basic": "A yellow card is the referee's official warning to a player for misconduct. Acuña received one for a foul in the attacking third.",
-    "intermediate": "Acuña was booked for a foul in the attacking third in minute 97, with the score level at 2-2.",
-    "tactical": "With five attackers in the penalty area and three defenders between the ball and goal at 2-2, Acuña's foul in the attacking third earned a booking at a congested, high-stakes moment in extra time."
+    "intermediate": "Acuña was booked for a foul in the attacking third in minute 97, with the match level at 2-2.",
+    "tactical": "With the match level and three defenders between the ball and goal at 28 yards out, Acuña's foul in a crowded attacking area posed little immediate threat to France."
   },
   "d341d94a-a4d0-442a-98df-98d1b852280a": {
-    "basic": "Offside is when a passer's teammate is nearer the goal than the ball and second-last defender. Extra time is two extra periods when a knockout match is level after 90 minutes. Upamecano's pass was ruled offside.",
-    "intermediate": "In the 95th minute, with the score 2-2 in extra time, Upamecano's pass from midfield on the left was ruled offside.",
-    "tactical": "With ten minutes left in the period and the match level at 2-2, Upamecano played a pass from 65 yards out that was ruled offside, surrendering possession in a balanced match."
+    "basic": "Offside means being nearer the opponents' goal than the ball and second-last defender when a teammate passes. Extra time is two extra 15-minute periods when a match is level after 90 minutes. Upamecano's pass was ruled offside.",
+    "intermediate": "In minute 95 of extra time, with the score 2-2, Upamecano's pass from the left side of midfield was ruled offside.",
+    "tactical": "At 2-2 with ten minutes left in the period, Upamecano's pass from 65 yards out was caught offside despite no defenders between the ball and goal."
+  },
+  "bae39b9d-d6b8-4c4b-8840-39b3ac3260e2": {
+    "basic": "Offside means being nearer the opponents' goal than the ball and second-last defender when a teammate passes. Extra time is two extra 15-minute periods when a match is level after 90 minutes. Koundé's pass was ruled offside.",
+    "intermediate": "In minute 100 of extra time, with the score level at 2-2, Koundé's pass from the right side of the attacking third was ruled offside.",
+    "tactical": "With five minutes left in the period and six attackers in the penalty area, France's offside pass from 39 yards out killed a promising position at 2-2."
   },
   "d3ba40fa-09d6-4488-b17d-672aaa2928d7": {
-    "basic": "Extra time is two extra periods played when a match is level after 90 minutes. A shot is an attempt to score by kicking or heading toward the goal. Martínez's shot was blocked.",
-    "intermediate": "With the score level at 2-2 in minute 104, Lautaro Martínez got a shot off inside the penalty area, but it was blocked.",
-    "tactical": "At 2-2, Martínez found space just 12 yards out with no defenders between him and goal, yet two opponents within yards were enough to block the shot in the final minute of the period."
+    "basic": "A shot is an attempt to score by kicking or heading the ball toward the goal. Extra time is two extra 15-minute periods played when a knockout match is level after 90 minutes. Martínez's shot was blocked.",
+    "intermediate": "In minute 104 of extra time, with the score level at 2-2, Martínez got a shot off inside the box but it was blocked.",
+    "tactical": "With a minute left in the period and two opponents within yards of the ball, Martínez's shot from 12 yards was blocked, leaving the 2-2 scoreline unchanged."
   },
   "5d7d4f2f-62da-4de9-90e3-3660ba17c4f3": {
-    "basic": "A shot is an attempt to score by kicking or heading toward the goal. Extra time is two extra 15-minute periods when a knockout match is level after 90 minutes. Martínez shot and missed the target.",
-    "intermediate": "At minute 105 of extra time, with the score level at 2-2, Martínez fired from inside the penalty area but missed the target.",
-    "tactical": "At 2-2 with the period ending, Martínez had space centrally inside the box but could not keep his shot on target, leaving the match level."
+    "basic": "A shot is an attempt to score by kicking or heading toward the goal. Extra time is two extra 15-minute periods when a knockout match is level after 90 minutes. Martínez shot off target.",
+    "intermediate": "In extra time at minute 105, with the match level at 2-2, Martínez fired a shot from inside the penalty area but it went off target.",
+    "tactical": "At 2-2 with the period ending, Martínez had central position inside the box but could not keep his shot on target, leaving the 2022 final still level."
   },
   "54b889ec-6026-49ea-a913-e883dbe6e301": {
-    "basic": "A goal means the whole ball crosses the goal line between the posts. Extra time is two extra periods played when a knockout match is level after 90 minutes. Messi scored for Argentina inside the penalty area.",
-    "intermediate": "Messi scored from close range inside the penalty area in minute 107 of extra time, putting Argentina ahead 3-2.",
-    "tactical": "With one defender between Messi and the goal and three Argentina attackers in the box, Messi converted from 5 yards out to make it 3-2, with thirteen minutes left in extra time."
+    "basic": "A goal is when the whole ball crosses the goal line between the posts. Extra time is two extra periods played when a knockout match is level after 90 minutes. Messi scored.",
+    "intermediate": "At 107 minutes, with the score level at 2-2 in extra time, Messi scored from inside the penalty area to put Argentina ahead 3-2.",
+    "tactical": "With one defender between Messi and the goal and three Argentina attackers in the box, Messi converted from five yards to make it 3-2 with thirteen minutes left in extra time."
   },
   "19e301d2-38dd-4cbd-8bc2-61d2b46b9951": {
-    "basic": "A yellow card is the referee's official warning to a player for misconduct; extra time is two extra 15-minute periods played when a knockout match is level after 90 minutes. Paredes was booked in midfield.",
-    "intermediate": "Paredes picked up a yellow card for a foul in midfield at 113 minutes, with Argentina leading France 3-2 in extra time.",
-    "tactical": "Argentina, protecting a 3-2 lead with seven minutes left in extra time, lost Paredes to a booking in midfield, leaving him one caution from dismissal at the worst possible moment."
+    "basic": "A yellow card is the referee's official warning for misconduct; extra time is two extra 15-minute periods played when a knockout match is level after 90 minutes. Paredes was booked in midfield.",
+    "intermediate": "Paredes fouled an opponent in midfield on the right side, picking up a yellow card in minute 113, with Argentina leading France 3-2.",
+    "tactical": "Paredes picked up a yellow card in midfield while Argentina protected a 3-2 lead, with roughly seven minutes left in extra time, a booking that adds risk for a side defending that advantage."
   },
   "08f2f203-cdc9-4146-99b6-818c5c32bf70": {
-    "basic": "A shot is an attempt to score by kicking or heading toward the goal; extra time is two extra 15-minute periods played when a knockout match is level after 90 minutes. Mbappé's shot was blocked.",
-    "intermediate": "Mbappé fired a shot from the left side in minute 115, but it was blocked, leaving France still trailing 3-2.",
-    "tactical": "With five minutes left and three defenders between Mbappé and goal at 3-2 down, France's left-side effort from 23 yards was always likely to be cut out."
+    "basic": "Extra time is two extra 15-minute periods played when a match is level after 90 minutes. A shot is an attempt to score by kicking or heading the ball toward the goal. Mbappé's shot was blocked.",
+    "intermediate": "In minute 115 of extra time, with France trailing 3-2, Mbappé fired a shot from the left side of the attacking third, but it was blocked.",
+    "tactical": "With three defenders between ball and goal and five minutes left in the period, Mbappé's shot from 23 yards out was blocked, France still trailing 3-2."
   },
   "dcbf6fe6-7b7f-4066-978e-de1a3d6d70ff": {
-    "basic": "Extra time is two added 15-minute periods when a match is level after 90 minutes. A yellow card is the referee's official warning for misconduct. Montiel fouled an opponent and was booked.",
-    "intermediate": "Montiel was shown a yellow card for a foul in Argentina's own half at minute 115, with Argentina leading 3-2.",
-    "tactical": "With Argentina protecting a lead in the closing minutes of extra time, Montiel's foul in his own half drew a yellow card, leaving France with a free kick just over a hundred yards from goal."
+    "basic": "A yellow card is the referee's official warning for misconduct; extra time is two extra 15-minute periods played when a knockout match is level after 90 minutes. Montiel was booked in his own half.",
+    "intermediate": "Montiel committed a foul in Argentina's own half in minute 115, earning a yellow card, with Argentina leading 3-2.",
+    "tactical": "With Argentina protecting a 3-2 lead and five minutes left in extra time, Montiel's foul drew a yellow card deep in his own half."
   },
   "d9b92dbd-4fea-4f48-b2fb-d7222eab2dbd": {
-    "basic": "A penalty kick is a free shot from the spot for a foul in the area. Extra time is two extra 15-minute periods when a match is level after 90 minutes. Mbappé scored to level it 3-3.",
-    "intermediate": "Mbappé converted a penalty in minute 117 to level the 2022 final at 3-3, pulling France level while chasing the match in extra time.",
-    "tactical": "With France chasing the match and only three minutes left in the period, Mbappé converted from 12 yards with no defenders between ball and goal, levelling at 3-3."
+    "basic": "A penalty kick is a free shot from the spot, given for a foul in the area. Extra time is two extra 15-minute periods after a level 90-minute knockout match. Mbappé scored to make it 3-3.",
+    "intermediate": "Mbappé converted a penalty in minute 117 to level the 2022 final at 3-3, pulling France back level in extra time.",
+    "tactical": "With three minutes left in the period and no defenders between ball and goal at 12 yards, Mbappé converted from the spot to bring the score to 3-3."
+  },
+  "7963f4cf-e710-42d4-b9ee-2d9b1b7ea12b": {
+    "basic": "Extra time is two extra periods when a match is level after 90 minutes. Offside is being nearer the opponents' goal than the ball and second-last defender when a teammate passes. Messi's pass was ruled offside.",
+    "intermediate": "In the 121st minute of extra time, with the score 3-3, Messi played a pass that was ruled offside, stopping Argentina's attack.",
+    "tactical": "With the score level and effectively no time left in the period, Messi's pass was caught offside with no defenders between the ball and goal, 46 yards out."
   },
   "959edead-09fb-40b0-b6a3-72e73bd30d5a": {
-    "basic": "A shot on goal heads into the net, forcing a save or scoring. A save is when the goalkeeper stops it. Extra time is two extra 15-minute periods played when a match is level after 90 minutes. Kolo Muani's shot was saved at 3-3.",
-    "intermediate": "Kolo Muani shot from the centre of the penalty area in minute 122 with the score at 3-3, but the goalkeeper saved it.",
-    "tactical": "At 3-3 deep in extra time, Kolo Muani had no defenders between him and goal from 17 yards, yet the goalkeeper, far off his line, closed the angle and saved it."
+    "basic": "A shot on goal heads into the net and scores or forces a stop. A save is the goalkeeper stopping it. Extra time is two extra periods when a knockout match is level after 90 minutes. Kolo Muani shot and Martínez saved, at 3-3.",
+    "intermediate": "At 3-3 in extra time, minute 122, Kolo Muani fired from inside the box but Argentina's goalkeeper made the save.",
+    "tactical": "With no defenders between Kolo Muani and the goal at 17 yards out, the keeper, already far off his line, still saved it at 3-3."
+  },
+  "6d527ebc-a948-4cd8-ac82-daced35bb715": {
+    "basic": "A penalty kick is a free shot from the penalty spot for a foul in the area. Messi scored, making it 1-0.",
+    "intermediate": "Messi converted a penalty kick in minute 22 to open the scoring at 1-0 for Argentina.",
+    "tactical": "With no defender between ball and goal from 12 yards out, Messi's penalty was unopposed, giving Argentina the lead at 1-0 with nearly half the first half remaining."
+  },
+  "d49e9601-1cbf-4df7-9a77-16877abe49dc": {
+    "basic": "Offside means being nearer the opponents' goal than the ball and second-last defender when a teammate passes. Messi was caught offside on the right.",
+    "intermediate": "Messi was flagged offside in the attacking third on the right in minute 29, with Argentina leading 1-0.",
+    "tactical": "With Argentina protecting a 1-0 lead and no defenders between Messi and goal, the offside call halted what was the most dangerous position on the right."
   }
 }

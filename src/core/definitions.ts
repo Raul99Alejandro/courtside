@@ -9,7 +9,7 @@ export const DEFINITIONS: Record<Concept, string> = {
   // Law 14: a penalty kick is awarded for a direct free kick offence by the defending team inside its own penalty area.
   'penalty kick': "A penalty kick is a free shot from the penalty spot, given for a foul inside the defenders' own penalty area.",
   // Law 11: offside position = in the opponents' half and nearer their goal line than both the ball and the second-last opponent; penalised only when involved in active play when the ball is played by a teammate.
-  offside: "Offside is when a player, nearer the opponents' goal line than the ball and the second-last defender, joins play as a teammate passes.",
+  offside: "Offside is being in the opponents' half, nearer their goal than the ball and second-last opponent, when a teammate passes.",
   // Law 12: a caution (yellow card) is for misconduct; a second caution in the same match means a sending off.
   'yellow card': "A yellow card is the referee's official warning to a player for misconduct.",
   // Law 12: a sending off (red card) for serious misconduct; the player may not be replaced.

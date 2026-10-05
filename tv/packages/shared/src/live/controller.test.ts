@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newViewer, type Viewer } from '@courtside/core';
 import type { Client, Promotion, RecentAnswer } from '../api/client';
-import { createController, type Backend, type SocketHandlers } from './controller';
+import { createController, MAX_PENDING, restorablePromotion, type Backend, type SocketHandlers } from './controller';
 
 const ok = <T>(data: T) => ({ ok: true as const, data });
 const err = (status: number, message: string) => ({ ok: false as const, status, message });
@@ -9,6 +9,7 @@ const leo = newViewer('Leo', 'beginner', 1);
 const ana = newViewer('Ana', 'beginner', 2);
 const raul = newViewer('Raul', 'expert', 3);
 const leoUp = { name: 'Leo', message: 'Leo moved up to Fan' };
+const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const m = new Map(Object.entries(initial));
@@ -199,10 +200,15 @@ describe('got it and undo', () => {
     expect(live.getState().promotions).toEqual([]);
   });
 
-  it('review 4: after a reload the last automatic promotion is still undoable (state comes from the server)', async () => {
-    const promoted: Viewer = { ...leo, level: 'fan', promotedAutomatically: true };
-    const { live, client } = setup({ getHousehold: vi.fn(async () => ok({ viewers: [promoted, ana] })) });
+  it('review 4: after a reload a recent promotion is still undoable once Leo is in the session (state comes from the server)', async () => {
+    const promoted: Viewer = { ...leo, level: 'fan', promotedAutomatically: true, promotedAt: minutesAgo(5) };
+    const { live, client } = setup({
+      getHousehold: vi.fn(async () => ok({ viewers: [promoted, ana] })),
+      createSession: vi.fn(async () => ok({ sessionId: 's1', viewers: [promoted] })),
+    });
     await live.boot();
+    expect(live.getState().promotions).toEqual([]); // no session yet, so nobody is "in the session"
+    await live.startSession(['Leo']);
     expect(live.getState().promotions).toEqual([leoUp]);
     await live.undo('Leo');
     expect(client.undoPromotion).toHaveBeenCalledWith('ABC234', 'Leo');
@@ -423,7 +429,7 @@ describe('fix round 1: shown retried with backoff', () => {
     expect(shown.mock.calls.map(c => [c[2].momentId, c[2].seq])).toEqual([['m1', 1], ['m1', 1]]);
   });
 
-  it('a retried older moment goes out before the newer one and keeps its lower seq', async () => {
+  it('final review: an unsent older moment is replaced by the newer one while offline', async () => {
     const shown = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
     const { live } = setup({ shown });
     await live.boot();
@@ -431,7 +437,7 @@ describe('fix round 1: shown retried with backoff', () => {
     await live.shown('m1', ['offside']);
     await live.shown('m2', ['goal']);
     await vi.advanceTimersByTimeAsync(2000);
-    expect(shown.mock.calls.map(c => [c[2].momentId, c[2].seq])).toEqual([['m1', 1], ['m1', 1], ['m2', 2]]);
+    expect(shown.mock.calls.map(c => [c[2].momentId, c[2].seq])).toEqual([['m1', 1], ['m2', 2]]);
   });
 });
 
@@ -550,5 +556,113 @@ describe('fix round 1: reconnect, viewers and missed answers', () => {
     await live.boot();
     await vi.advanceTimersByTimeAsync(10_000); // a poll too
     expect(live.getState().answers).toEqual([]);
+  });
+});
+
+describe('final review: shown queue, retries, flash, promotion recency', () => {
+  it('only the newest unsent shown survives a long offline stretch', async () => {
+    let offline = true;
+    const reply = () => (offline ? err(0, 'offline') : ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
+    const shown = vi.fn(async (_c: string, _s: string, _b: { momentId: string; seq: number }) => reply());
+    const { live } = setup({ shown });
+    await live.boot();
+    await live.startSession(['Leo']);
+    for (const m of ['a', 'b', 'c', 'd']) await live.shown(m, ['goal']);
+    offline = false;
+    shown.mockClear();
+    await vi.advanceTimersByTimeAsync(30_000);
+    const sent = shown.mock.calls.map(c => c[2].momentId);
+    expect(sent).toEqual(['d']);
+  });
+
+  it('keeps Got it queued in order while shown moments are replaced', async () => {
+    let offline = true;
+    const reply = () => (offline ? err(0, 'offline') : ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
+    const gotIt = vi.fn(async (_c: string, _n: string, _k: unknown[]) => reply());
+    const shown = vi.fn(async (_c: string, _s: string, _b: { momentId: string; seq: number }) => reply());
+    const { live } = setup({ gotIt, shown });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo', 'Ana'], ['offside']);
+    await live.shown('m1', ['goal']);
+    await live.shown('m2', ['goal']);
+    offline = false;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(gotIt.mock.calls.slice(-2).map(c => c[1])).toEqual(['Leo', 'Ana']);
+    expect(shown.mock.calls.map(c => c[2].momentId).filter(m => m === 'm1')).toEqual([]);
+    expect(shown.mock.calls.map(c => c[2].momentId)).toContain('m2');
+  });
+
+  it('caps the pending queue at 20, dropping the oldest', async () => {
+    const gotIt = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
+    const { live } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    const names = Array.from({ length: 30 }, (_, i) => 'V' + i);
+    await live.gotIt(names, ['goal']);
+    await vi.advanceTimersByTimeAsync(1000);
+    const sent = gotIt.mock.calls.slice(1).map(c => c[1]);
+    expect(MAX_PENDING).toBe(20);
+    expect(sent).toHaveLength(20);
+    expect(sent[sent.length - 1]).toBe('V29');
+  });
+
+  it('a 429 is retried like a busy server', async () => {
+    const shown = vi.fn().mockResolvedValueOnce(err(429, 'slow down')).mockResolvedValue(ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
+    const { live } = setup({ shown });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.shown('m1', ['offside']);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(shown).toHaveBeenCalledTimes(2);
+  });
+
+  it('a refused Got it (400) is also a problem toast for a few seconds', async () => {
+    const { live } = setup({ gotIt: vi.fn(async () => err(400, 'Unknown concept')) });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo'], ['offside']);
+    expect(live.getState().problem).toBe('Unknown concept');
+    expect(live.getState().notice).toBe('Unknown concept');
+    await vi.advanceTimersByTimeAsync(4900);
+    expect(live.getState().problem).toBe('Unknown concept');
+    await vi.advanceTimersByTimeAsync(200);
+    expect(live.getState().problem).toBeUndefined();
+  });
+
+  it('something queued while a flush ends is sent without waiting for a reconnect', async () => {
+    let release!: (v: unknown) => void;
+    const gotIt = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise(res => (release = res)))
+      .mockResolvedValue(ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
+    const { live } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    const first = live.gotIt(['Leo'], ['goal']);
+    await settle();
+    void live.gotIt(['Ana'], ['goal']);
+    release(ok({ viewers: [leo, ana, raul], promotions: [] }));
+    await first;
+    await settle();
+    expect(gotIt.mock.calls.map(c => c[1])).toEqual(['Leo', 'Ana']);
+  });
+
+  it('does not restore an old promotion, one without a time, or one of someone not in the session', async () => {
+    const old: Viewer = { ...leo, level: 'fan', promotedAutomatically: true, promotedAt: minutesAgo(31) };
+    const legacy: Viewer = { ...ana, level: 'fan', promotedAutomatically: true };
+    const recentAbsent: Viewer = { ...raul, level: 'fan', promotedAutomatically: true, promotedAt: minutesAgo(1) };
+    const { live } = setup({ getHousehold: vi.fn(async () => ok({ viewers: [old, legacy, recentAbsent] })) });
+    await live.boot();
+    await live.startSession(['Leo', 'Ana']);
+    expect(live.getState().promotions).toEqual([]);
+  });
+
+  it('restorablePromotion picks the most recent fresh one among those present', () => {
+    const a: Viewer = { ...leo, level: 'fan', promotedAutomatically: true, promotedAt: minutesAgo(20) };
+    const b: Viewer = { ...ana, level: 'fan', promotedAutomatically: true, promotedAt: minutesAgo(2) };
+    const c: Viewer = { ...raul, level: 'fan', promotedAutomatically: true, promotedAt: minutesAgo(1) };
+    expect(restorablePromotion([a, b, c], ['Leo', 'Ana'], Date.now())).toEqual({ name: 'Ana', message: 'Ana moved up to Fan' });
+    expect(restorablePromotion([a, b, c], [], Date.now())).toBeUndefined();
   });
 });

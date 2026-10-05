@@ -52,13 +52,13 @@ export function answerLayerForQuestion(v: Viewer, aboutConcept?: Concept): Layer
   return BASE[v.level];
 }
 
-function addUnderstood(v: Viewer, c: Concept): { viewer: Viewer; promotion?: string; undoOffered?: true } {
+function addUnderstood(v: Viewer, c: Concept, now: Date): { viewer: Viewer; promotion?: string; undoOffered?: true } {
   if (v.understood.includes(c)) return { viewer: v };
   let viewer: Viewer = { ...v, understood: [...v.understood, c] };
   let promotion: string | undefined;
   let undoOffered: true | undefined;
   if (viewer.level === 'beginner' && !viewer.autoPromotionDisabled && viewer.understood.length >= PROMOTE_AT) {
-    viewer = { ...viewer, level: 'fan', promotedAutomatically: true };
+    viewer = { ...viewer, level: 'fan', promotedAutomatically: true, promotedAt: now.toISOString() };
     promotion = promotionMessage(viewer);
     undoOffered = true;
   }
@@ -66,16 +66,16 @@ function addUnderstood(v: Viewer, c: Concept): { viewer: Viewer; promotion?: str
 }
 
 /** R-04: "Got it" marks the concept understood at once. */
-export function markGotIt(v: Viewer, c: Concept) { return addUnderstood(v, c); }
+export function markGotIt(v: Viewer, c: Concept, now: Date = new Date()) { return addUnderstood(v, c, now); }
 
 /** R-04: a basic explanation shown without a question counts; the second view makes it understood. */
-export function recordBasicShown(v: Viewer, concepts: Concept[]): { viewer: Viewer; promotion?: string; undoOffered?: true } {
+export function recordBasicShown(v: Viewer, concepts: Concept[], now: Date = new Date()): { viewer: Viewer; promotion?: string; undoOffered?: true } {
   let viewer = v; let promotion: string | undefined; let undoOffered: true | undefined;
   for (const c of concepts) {
     if (viewer.understood.includes(c)) continue;
     const n = (viewer.seenBasic[c] ?? 0) + 1;
     viewer = { ...viewer, seenBasic: { ...viewer.seenBasic, [c]: n } };
-    if (n >= UNDERSTOOD_AFTER_VIEWS) { const r = addUnderstood(viewer, c); viewer = r.viewer; promotion = r.promotion ?? promotion; undoOffered = r.undoOffered ?? undoOffered; }
+    if (n >= UNDERSTOOD_AFTER_VIEWS) { const r = addUnderstood(viewer, c, now); viewer = r.viewer; promotion = r.promotion ?? promotion; undoOffered = r.undoOffered ?? undoOffered; }
   }
   return { viewer, promotion, undoOffered };
 }
@@ -88,7 +88,8 @@ export function recordAsked(v: Viewer, c: Concept): Viewer {
 /** R-07-c: undo an automatic promotion; never promote automatically again. */
 export function undoPromotion(v: Viewer): Viewer {
   if (!v.promotedAutomatically) return v;
-  return { ...v, level: 'beginner', promotedAutomatically: false, autoPromotionDisabled: true };
+  const { promotedAt: _cleared, ...rest } = v;
+  return { ...rest, level: 'beginner', promotedAutomatically: false, autoPromotionDisabled: true };
 }
 
 export const lowestLayer = (ls: Layer[]): Layer => LAYER_ORDER.find(l => ls.includes(l)) ?? 'basic';

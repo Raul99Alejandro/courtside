@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { newViewer, type Moment } from '@courtside/core';
-import { cardRowsFor, type Cards } from './match';
+import { cardRowsFor, whyAnswer, type Cards } from './match';
 import { shortName } from './names';
 
 const goal: Moment = {
@@ -41,6 +41,21 @@ describe('cardRowsFor', () => {
 
   it('returns no rows when nobody is present', () => {
     expect(cardRowsFor(goal, [], cards)).toEqual([]);
+  });
+});
+
+describe('whyAnswer (R-08-b)', () => {
+  it('answers at basic when a basic row is present, even with an expert in the room', () => {
+    const w = whyAnswer(goal, cardRowsFor(goal, [leo, raul], cards), cards);
+    expect(w.layer).toBe('basic');
+    expect(w.text).toContain('A goal is scored when the whole ball crosses the goal line');
+  });
+
+  it('answers at the lowest layer present when nobody needs basic', () => {
+    const both = { ...leo, understood: ['goal' as const, 'extra time' as const] };
+    const w = whyAnswer(goal, cardRowsFor(goal, [both, raul], cards), cards);
+    expect(w).toEqual({ layer: 'intermediate', text: 'MID text' });
+    expect(whyAnswer(goal, cardRowsFor(goal, [raul], cards), cards)).toEqual({ layer: 'tactical', text: 'TACTICAL text' });
   });
 });
 

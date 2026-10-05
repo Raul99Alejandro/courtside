@@ -39,6 +39,7 @@ export function createSocket(opts: SocketOptions) {
       opts.onOpen();
     };
     mine.onmessage = e => {
+      if (ws !== mine) return; // a socket that was replaced or stopped says nothing more
       try {
         const m = JSON.parse(String(e.data));
         if (m && typeof m === 'object') opts.onMessage(m);

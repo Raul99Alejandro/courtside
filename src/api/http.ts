@@ -33,6 +33,10 @@ export const MAX_PROFILES_PER_HOUSEHOLD = 10;
 const LEVELS: Level[] = ['beginner', 'fan', 'expert'];
 const CONCEPTS: Concept[] = ['penalty kick', 'offside', 'yellow card', 'red card', 'assist', 'shot on goal', 'shot', 'goal', 'extra time', 'penalty shoot-out', 'save'];
 const MAX_MOMENT_ID_CHARS = 64;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SESSION_EXPIRED = 'Session expired';
+/** A session id sent by a client (path or body): absent is fine, anything that is not a UUID is an expired session. */
+const badSessionId = (v: unknown) => v !== undefined && v !== null && v !== '' && !(typeof v === 'string' && UUID.test(v));
 
 const reply = (statusCode: number, data: unknown): HttpResult => ({ statusCode, headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
 const fail = (statusCode: number, message: string) => reply(statusCode, { message });
@@ -76,6 +80,7 @@ export function makeHttpHandler(deps: Deps) {
   }
 
   async function question(code: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
+    if (badSessionId(raw.sessionId)) return fail(404, SESSION_EXPIRED);
     const text = typeof raw.question === 'string' ? raw.question.trim() : '';
     if (!text) return fail(400, 'Ask a question first');
     if (text.length > MAX_QUESTION_CHARS) return fail(400, `Keep the question under ${MAX_QUESTION_CHARS} characters`);
@@ -84,6 +89,7 @@ export function makeHttpHandler(deps: Deps) {
   }
 
   async function audioQuestion(code: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
+    if (badSessionId(raw.sessionId)) return fail(404, SESSION_EXPIRED);
     if (typeof raw.wavBase64 !== 'string' || !raw.wavBase64) return fail(400, 'Hold the button and ask first');
     const wav = parseWav(new Uint8Array(Buffer.from(raw.wavBase64, 'base64')));
     if (!wav.ok) return fail(400, wav.message);
@@ -95,6 +101,9 @@ export function makeHttpHandler(deps: Deps) {
     if (!text) return reply(200, { ok: false, message: DIDNT_CATCH });
     return deliverAndNote(code, viewers, raw, route, text);
   }
+
+  /** A household in use does not expire: each visit pushes its items' TTL out (at most once an hour, best effort). */
+  const touch = (code: string) => store.touchHousehold(code).catch(() => undefined);
 
   const findViewer = (viewers: Viewers, name: unknown) =>
     typeof name === 'string' ? viewers.find(v => v.name.toLowerCase() === name.trim().toLowerCase()) : undefined;
@@ -147,17 +156,19 @@ export function makeHttpHandler(deps: Deps) {
     const sessionId = randomUUID();
     await store.putSession(code, sessionId, { present });
     await store.setLatestSession(code, { sessionId });
+    await touch(code);
     return reply(200, { sessionId, viewers: present.map(n => viewers.find(v => v.name === n)!) });
   }
 
   /** The TV says what it showed; the server decides each viewer's layer from stored state (R-02) and counts basic views (R-04). */
   async function shown(code: string, sessionId: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
+    if (badSessionId(sessionId) || !sessionId) return fail(404, SESSION_EXPIRED);
     const momentId = typeof raw.momentId === 'string' ? raw.momentId.trim() : '';
     if (!momentId || momentId.length > MAX_MOMENT_ID_CHARS) return fail(400, 'Missing moment');
     const concepts = parseConcepts(raw.concepts);
     if (!concepts || concepts.length === 0) return fail(400, 'Unknown concept');
     const session = await store.getSession(code, sessionId);
-    if (!session) return fail(404, 'Session expired');
+    if (!session) return fail(404, SESSION_EXPIRED);
     const promotions: Promotion[] = [];
     try {
       for (const name of session.present) {
@@ -253,6 +264,7 @@ export function makeHttpHandler(deps: Deps) {
     if (!viewers) return fail(404, 'Unknown code');
 
     if (parts.length === 2 && method === 'GET') {
+      await touch(code);
       // sessionId: the newest session, so a phone can send it with its questions; recentAnswers: for a TV whose socket dropped
       const [latest, recentAnswers] = await Promise.all([store.latestSession(code), store.recentAnswers(code)]);
       return reply(200, { viewers, ...(latest ? { sessionId: latest.sessionId } : {}), recentAnswers });

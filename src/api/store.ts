@@ -4,7 +4,9 @@ import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, QueryCom
 import type { Viewer } from '../core/index.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-export const HOUSEHOLD_TTL_S = 7 * 24 * 3600;
+export const HOUSEHOLD_TTL_S = 30 * 24 * 3600;
+/** A household's TTL is pushed out on use, but never more often than this. */
+export const TOUCH_EVERY_S = 3600;
 export const CONNECTION_TTL_S = 24 * 3600;
 export const SESSION_TTL_S = 24 * 3600;
 
@@ -41,6 +43,8 @@ export interface Store {
   addAnswer(code: string, a: RecentAnswer): Promise<void>;
   /** The kept answers, oldest first. */
   recentAnswers(code: string): Promise<RecentAnswer[]>;
+  /** Sliding TTL: pushes the household and all its viewers 30 days out; does nothing if that happened in the last hour. Best effort. */
+  touchHousehold(code: string): Promise<void>;
   addConnection(code: string, connectionId: string): Promise<void>;
   removeConnection(connectionId: string): Promise<void>;
   connections(code: string): Promise<string[]>;
@@ -71,7 +75,7 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
         try {
           await doc.send(new PutCommand({
             TableName: table, ConditionExpression: 'attribute_not_exists(pk)',
-            Item: { pk: hh(code), sk: 'META', householdId, createdAt: new Date().toISOString(), ttl: now() + HOUSEHOLD_TTL_S },
+            Item: { pk: hh(code), sk: 'META', householdId, createdAt: new Date().toISOString(), lastTouched: now(), ttl: now() + HOUSEHOLD_TTL_S },
           }));
           return { householdId, code };
         } catch (err) {
@@ -157,6 +161,29 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
       }));
       const cutoff = Date.now() - ANSWER_TTL_S * 1000; // DynamoDB deletes expired items late
       return (r.Items ?? []).map(i => i.answer as RecentAnswer).filter(a => a.at > cutoff).reverse();
+    },
+    async touchHousehold(code) {
+      const t = now();
+      const ttl = t + HOUSEHOLD_TTL_S;
+      try {
+        await doc.send(new UpdateCommand({
+          TableName: table, Key: { pk: hh(code), sk: 'META' },
+          ConditionExpression: 'attribute_exists(pk) AND (attribute_not_exists(#lt) OR #lt < :cut)',
+          UpdateExpression: 'SET #ttl = :ttl, #lt = :t', ExpressionAttributeNames: { '#ttl': 'ttl', '#lt': 'lastTouched' },
+          ExpressionAttributeValues: { ':ttl': ttl, ':t': t, ':cut': t - TOUCH_EVERY_S },
+        }));
+      } catch (err) {
+        if ((err as { name?: string }).name === 'ConditionalCheckFailedException') return; // touched within the hour, or gone
+        throw err;
+      }
+      const r = await doc.send(new QueryCommand({
+        TableName: table, KeyConditionExpression: 'pk = :pk AND begins_with(sk, :p)', ProjectionExpression: 'sk',
+        ExpressionAttributeValues: { ':pk': hh(code), ':p': 'VIEWER#' },
+      }));
+      await Promise.allSettled((r.Items ?? []).map(i => doc.send(new UpdateCommand({
+        TableName: table, Key: { pk: hh(code), sk: i.sk as string }, ConditionExpression: 'attribute_exists(pk)', // never bring back a deleted viewer
+        UpdateExpression: 'SET #ttl = :ttl', ExpressionAttributeNames: { '#ttl': 'ttl' }, ExpressionAttributeValues: { ':ttl': ttl },
+      }))));
     },
     async addConnection(code, connectionId) {
       const ttl = now() + CONNECTION_TTL_S;

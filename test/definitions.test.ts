@@ -12,8 +12,9 @@ it('every concept has one canonical definition of at most 25 words', () => {
     expect(d, c).not.toMatch(/—/);
   }
 });
-it('offside mentions the ball and the second-last defender, not just "no defenders"', () => {
-  expect(DEFINITIONS.offside).toMatch(/second-last defender/);
+it('offside is in the opponents half and mentions the ball and the second-last opponent, not just "no defenders"', () => {
+  expect(DEFINITIONS.offside).toMatch(/in the opponents' half/);
+  expect(DEFINITIONS.offside).toMatch(/second-last opponent/);
   expect(DEFINITIONS.offside).toMatch(/ball/);
 });
 

@@ -72,5 +72,5 @@ it('judge basic question requires consistency with the definition, via a fake co
   const seen: string[] = [];
   await judgeBasic('s', m, async (_ids, _sys, user) => { seen.push(user); return { text: 'Verdict: yes', modelId: 'f' }; });
   expect(seen[0]).toContain('is consistent with this definition');
-  expect(seen[0]).toContain('second-last defender');
+  expect(seen[0]).toContain('second-last opponent');
 });

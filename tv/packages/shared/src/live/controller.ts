@@ -61,6 +61,10 @@ const RETRY_MS = 5000;
 const RETRY_BASE_MS = 1000;
 const RETRY_MAX_MS = 30_000;
 const SEEN_KEYS = 50;
+export const MAX_PENDING = 20;
+const PROBLEM_FLASH_MS = 5000;
+/** A moved-up toast is only worth showing again for this long after the promotion (R-07). */
+export const PROMOTION_FRESH_MS = 30 * 60 * 1000;
 
 const NOTICE = {
   householdGone: "This TV's code expired. Here is a new code - add viewers again from your phone.",
@@ -73,6 +77,8 @@ export interface ControllerDeps {
   backend: () => Promise<Backend>;
   storage: KeyValueStorage;
   pollMs?: number;
+  /** Epoch ms; tests pass a fixed clock. */
+  now?: () => number;
 }
 
 /** Something to tell the server that could not get through yet; kept, in order, until it does. */
@@ -82,7 +88,16 @@ type Pending =
   | { kind: 'undo'; name: string };
 
 /** Offline, a timeout, a busy server: worth another try. Anything else is the server's answer. */
-const retryable = (r: { status: number }) => r.status === 0 || r.status === 409 || r.status >= 500;
+const retryable = (r: { status: number }) => r.status === 0 || r.status === 409 || r.status === 429 || r.status >= 500;
+
+/** The toast to bring back: the most recent automatic promotion (by promotedAt) that is under 30 minutes old, of a viewer in the session. */
+export function restorablePromotion(viewers: Viewer[], present: string[], nowMs: number): Promotion | undefined {
+  const fresh = viewers
+    .filter(v => v.promotedAutomatically && present.includes(v.name) && v.promotedAt && nowMs - Date.parse(v.promotedAt) < PROMOTION_FRESH_MS && Date.parse(v.promotedAt) <= nowMs + 60_000)
+    .sort((a, b) => Date.parse(a.promotedAt!) - Date.parse(b.promotedAt!));
+  const v = fresh[fresh.length - 1];
+  return v ? { name: v.name, message: promotionMessage(v) } : undefined;
+}
 
 const validPromotions = (v: unknown): Promotion[] | undefined =>
   Array.isArray(v) ? v.filter((p): p is Promotion => !!p && typeof p.name === 'string' && typeof p.message === 'string') : undefined;
@@ -93,6 +108,7 @@ const validPromotions = (v: unknown): Promotion[] | undefined =>
  */
 export function createController(deps: ControllerDeps) {
   const pollMs = deps.pollMs ?? RETRY_MS;
+  const now = deps.now ?? (() => Date.now());
   let state: LiveState = { ready: false, viewers: [], present: [], promotions: [], answers: [], connected: false };
   const listeners = new Set<() => void>();
   let backend: Backend | undefined;
@@ -107,6 +123,8 @@ export function createController(deps: ControllerDeps) {
   let flushing: Promise<void> | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
   let retryDelay = RETRY_BASE_MS;
+  let inFlight: Pending | undefined;
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
   let reqCounter = 0;
   let lastApplied = 0;
   let replacing: Promise<void> | undefined;
@@ -250,8 +268,9 @@ export function createController(deps: ControllerDeps) {
       await deps.storage.set(CODE_KEY, code).catch(() => undefined);
     }
     viewers = byCreation(viewers);
-    // After a reload the toast comes back from server state: the last automatic promotion can still be undone (R-07).
-    const promotions = viewers.filter(v => v.promotedAutomatically).map(v => ({ name: v.name, message: promotionMessage(v) })).slice(-1);
+    // After a reload the toast comes back from server state, but only a recent promotion of someone in the session (R-07).
+    const restored = restorablePromotion(viewers, state.present, now());
+    const promotions = restored ? [restored] : [];
     lastApplied = ++reqCounter;
     set({ ready: true, code, siteUrl: backend.siteUrl, viewers, promotions, notice: message });
     socket?.stop();
@@ -301,8 +320,30 @@ export function createController(deps: ControllerDeps) {
   function flush(): Promise<void> {
     flushing ??= run().finally(() => {
       flushing = undefined;
+      inFlight = undefined;
+      // Something was queued as the run ended and no retry is waiting for it: send it now.
+      if (pending.length && !retryTimer && backend && state.code) void flush();
     });
     return flushing;
+  }
+
+  function flashProblem(message: string) {
+    if (flashTimer) clearTimeout(flashTimer);
+    set({ problem: message });
+    flashTimer = setTimeout(() => {
+      flashTimer = undefined;
+      if (state.problem === message) set({ problem: undefined });
+    }, PROBLEM_FLASH_MS);
+  }
+
+  /** A newer `shown` replaces one that has not gone out yet; the queue never holds more than MAX_PENDING (oldest `shown` goes first). */
+  function enqueue(p: Pending) {
+    if (p.kind === 'shown') pending = pending.filter(x => x.kind !== 'shown' || x === inFlight);
+    pending.push(p);
+    while (pending.length > MAX_PENDING) {
+      const i = pending.findIndex(x => x !== inFlight && x.kind === 'shown');
+      pending.splice(i >= 0 ? i : pending.findIndex(x => x !== inFlight), 1);
+    }
   }
 
   async function run() {
@@ -318,6 +359,7 @@ export function createController(deps: ControllerDeps) {
         continue;
       }
       const req = ++reqCounter;
+      inFlight = p;
       let r: ApiResult<{ viewers: Viewer[]; promotions?: Promotion[] }>;
       if (p.kind === 'shown') r = await backend.client.shown(code, state.sessionId!, { momentId: p.momentId, concepts: p.concepts, seq: p.seq });
       else if (p.kind === 'gotIt') r = await backend.client.gotIt(code, p.name, p.concepts);
@@ -340,10 +382,13 @@ export function createController(deps: ControllerDeps) {
         return;
       }
       pending = pending.filter(x => x !== p);
-      if (!(await handleFailure(r)) && p.kind !== 'shown') set({ notice: r.message });
+      if (!(await handleFailure(r)) && p.kind !== 'shown') {
+        set({ notice: r.message });
+        flashProblem(r.message); // Replay is on screen: show it there too, for a few seconds
+      }
     }
     retryDelay = RETRY_BASE_MS;
-    if (state.problem) set({ problem: undefined });
+    if (state.problem && !flashTimer) set({ problem: undefined });
   }
 
   return {
@@ -369,7 +414,9 @@ export function createController(deps: ControllerDeps) {
       lastShown = undefined;
       pending = pending.filter(p => p.kind !== 'shown');
       const fresh = state.viewers.map(v => r.data.viewers.find(x => x.name === v.name) ?? v);
-      set({ sessionId: r.data.sessionId, present: r.data.viewers.map(v => v.name), viewers: fresh, momentId: undefined, notice: undefined });
+      const present = r.data.viewers.map(v => v.name);
+      const restored = restorablePromotion(fresh, present, now()); // a promotion from minutes ago can still be undone; an old one stays quiet
+      set({ sessionId: r.data.sessionId, present, viewers: fresh, promotions: restored ? [restored] : [], momentId: undefined, notice: undefined });
       return { ok: true };
     },
 
@@ -379,20 +426,20 @@ export function createController(deps: ControllerDeps) {
       if (lastShown !== undefined && state.promotions.length) set({ promotions: [] });
       lastShown = momentId;
       set({ momentId });
-      pending.push({ kind: 'shown', momentId, concepts, seq: ++seq });
+      enqueue({ kind: 'shown', momentId, concepts, seq: ++seq });
       await flush();
     },
 
     /** "Got it" for each viewer on the basic row. Offline or a server error: kept and retried, with a toast on Replay. */
     async gotIt(names: string[], concepts: Concept[]) {
       if (!backend || !state.code) return;
-      for (const name of names) pending.push({ kind: 'gotIt', name, concepts });
+      for (const name of names) enqueue({ kind: 'gotIt', name, concepts });
       await flush();
     },
 
     async undo(name: string) {
       if (!backend || !state.code) return;
-      pending.push({ kind: 'undo', name });
+      enqueue({ kind: 'undo', name });
       await flush();
     },
 
@@ -408,7 +455,8 @@ export function createController(deps: ControllerDeps) {
       if (pollTimer) clearInterval(pollTimer);
       if (bootTimer) clearTimeout(bootTimer);
       if (retryTimer) clearTimeout(retryTimer);
-      pollTimer = bootTimer = retryTimer = undefined;
+      if (flashTimer) clearTimeout(flashTimer);
+      pollTimer = bootTimer = retryTimer = flashTimer = undefined;
     },
   };
 }

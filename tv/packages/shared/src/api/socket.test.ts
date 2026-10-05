@@ -158,4 +158,23 @@ describe('createSocket', () => {
     await vi.advanceTimersByTimeAsync(60000);
     expect(FakeWs.all).toHaveLength(1);
   });
+
+  it('final review: a socket that is no longer current is ignored (replaced after a drop, or stopped)', async () => {
+    const { s, events } = make();
+    s.start();
+    const old = FakeWs.all[0]!;
+    old.open();
+    old.drop();
+    await flush();
+    await vi.advanceTimersByTimeAsync(1000);
+    const fresh = FakeWs.all[1]!;
+    fresh.open();
+    old.onmessage!({ data: JSON.stringify({ type: 'answer', answer: 'stale' }) });
+    expect(events.message).not.toHaveBeenCalled();
+    fresh.onmessage!({ data: JSON.stringify({ type: 'answer', answer: 'now' }) });
+    expect(events.message).toHaveBeenCalledTimes(1);
+    s.stop();
+    fresh.onmessage!({ data: JSON.stringify({ type: 'answer', answer: 'after stop' }) });
+    expect(events.message).toHaveBeenCalledTimes(1);
+  });
 });

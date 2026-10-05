@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import QRCode from 'react-native-qrcode-svg';
@@ -7,6 +7,7 @@ import { DefaultFocus, SpatialNavigationFocusableView, SpatialNavigationNode, Sp
 import { scarfIndex, type Viewer } from '@courtside/core';
 import { DEMO_CODE, HOUSEHOLD, LEVEL_LABEL, PHONE_URL } from '../data/demo-household';
 import { defaultPick, selection, togglePick } from '../data/picking';
+import { singleFlight } from '../data/dwell';
 import { phoneUrl, useLive } from '../live';
 import { isDemo } from './screen';
 import { theme } from '../theme/courtside';
@@ -68,6 +69,7 @@ export default function Watching() {
   const [present, setPresent] = useState<string[]>(model.initialPick ?? []);
   const [touched, setTouched] = useState(!!model.initialPick);
   const [message, setMessage] = useState<string | undefined>();
+  const [starting, setStarting] = useState(false);
   const c = theme.color;
 
   // Until someone picks by hand, everyone (up to 3) is watching; people removed from the household drop out.
@@ -87,7 +89,9 @@ export default function Watching() {
       return r.present;
     });
   }, []);
-  const start = useCallback(async () => {
+  // One request at a time: a second press while the first is in flight must not make a second session.
+  const latest = useRef<() => Promise<void>>(async () => undefined);
+  latest.current = async () => {
     if (present.length === 0) {
       setMessage(viewers.length ? 'Pick who is watching.' : 'Add someone from your phone first.');
       return;
@@ -95,7 +99,8 @@ export default function Watching() {
     const refused = await model.start(present);
     if (refused) setMessage(refused);
     else navigation.navigate('Replay');
-  }, [present, viewers.length, model, navigation]);
+  };
+  const start = useMemo(() => singleFlight(() => latest.current(), setStarting), []);
 
   const compact = viewers.length > MAX_PER_ROW;
   const shown = message ?? model.notice;
@@ -141,7 +146,7 @@ export default function Watching() {
                 </View>
                 <SpatialNavigationNode orientation="horizontal">
                   <View style={{ marginTop: px(10), alignSelf: 'flex-start' }}>
-                    <ThemedButton text="Start watching" onSelect={() => void start()} primary />
+                    <ThemedButton text="Start watching" onSelect={() => void start()} primary disabled={starting} />
                   </View>
                 </SpatialNavigationNode>
               </View>

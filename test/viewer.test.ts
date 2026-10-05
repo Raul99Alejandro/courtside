@@ -46,3 +46,18 @@ describe('review edges', () => {
     expect(basicRowFor(newViewer('B', 'beginner'), ['offside'])).toEqual({ showBasic: true });
   });
 });
+
+describe('promotedAt (final review)', () => {
+  const at = new Date('2026-10-05T12:00:00.000Z');
+  it('is set on automatic promotion, by Got it and by a second basic view', () => {
+    const v = { ...newViewer('Leo', 'beginner'), understood: many(PROMOTE_AT - 1) };
+    expect(markGotIt(v, 'offside', at).viewer.promotedAt).toBe('2026-10-05T12:00:00.000Z');
+    const seen = { ...v, seenBasic: { offside: 1 } };
+    expect(recordBasicShown(seen, ['offside'], at).viewer).toMatchObject({ level: 'fan', promotedAt: '2026-10-05T12:00:00.000Z' });
+  });
+  it('is not set without a promotion, and is cleared by undo', () => {
+    expect(markGotIt(newViewer('Leo', 'beginner'), 'goal', at).viewer.promotedAt).toBeUndefined();
+    const up = markGotIt({ ...newViewer('Leo', 'beginner'), understood: many(PROMOTE_AT - 1) }, 'offside', at).viewer;
+    expect(undoPromotion(up)).not.toHaveProperty('promotedAt');
+  });
+});

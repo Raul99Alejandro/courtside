@@ -14,6 +14,8 @@ export interface Viewer {
   seenBasic: Partial<Record<Concept, number>>;
   /** Set when R-07 promoted the viewer automatically. */
   promotedAutomatically?: boolean;
+  /** ISO time of that automatic promotion; the TV shows the moved-up toast again after a reload only while it is recent. Cleared on undo. */
+  promotedAt?: string;
   /** Set when the viewer undid an automatic promotion; no further automatic promotion (R-07-c). */
   autoPromotionDisabled?: boolean;
   /** Creation order within the household (1, 2, 3...), set once; the scarf colour follows it for life. Older profiles have none and sort after, by name. */

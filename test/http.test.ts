@@ -19,6 +19,8 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
   const answers = new Map<string, RecentAnswer[]>();
   const versions = new Map<string, number>();
   const failPuts = { n: 0 };
+  const touches: string[] = [];
+  const touchFail = { on: false };
   const store: Store = {
     async createHousehold() { households.set('ABC234', []); return { householdId: 'hh-1', code: 'ABC234' }; },
     async getViewers(code) { return households.get(code); },
@@ -47,13 +49,14 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
     async setLatestSession(code, l) { latest.set(code, l); },
     async addAnswer(code, a) { answers.set(code, [...(answers.get(code) ?? []), a].slice(-5)); },
     async recentAnswers(code) { return (answers.get(code) ?? []).filter(a => a.at > Date.now() - 3600_000); },
+    async touchHousehold(code) { if (touchFail.on) throw new Error('dynamo down'); touches.push(code); },
     async addConnection(code, id) { conns.set(code, [...(conns.get(code) ?? []), id]); },
     async removeConnection(id) { removed.push(id); },
     async connections(code) { return conns.get(code) ?? []; },
     async countHousehold() { return ++rate; },
     async countGlobal() { return { hour: ++globalRate, day: ++dayRate }; },
   };
-  return { store, households, conns, sessions, latest, answers, failPuts, removed, counters: () => ({ rate, globalRate, dayRate }) };
+  return { store, households, conns, sessions, latest, answers, failPuts, removed, touches, touchFail, counters: () => ({ rate, globalRate, dayRate }) };
 }
 
 const ev = (method: string, path: string, body?: unknown): HttpEvent => ({
@@ -449,11 +452,45 @@ describe('http handler', () => {
       expect(leo().seenBasic).toEqual({ offside: 1 });
     });
 
-    it('an older moment (lower seq) does not replace the session current moment', async () => {
+    it('an older moment (lower seq) does not replace the session current moment, but its view is still counted', async () => {
       const sessionId = await startSession(['Leo']);
       await post(`/sessions/${sessionId}/shown`, { momentId: 'm2', concepts: ['goal'], seq: 2 });
       await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], seq: 1 });
       expect(f.sessions.get(`ABC234#${sessionId}`)).toMatchObject({ momentId: 'm2', concepts: ['goal'], seq: 2 });
+      expect(leo().seenBasic).toEqual({ goal: 1, offside: 1 });
+    });
+
+    it('a session id that is not a UUID is a friendly 404 Session expired, in the path and in the body', async () => {
+      for (const id of ['nope', '123', 'abc-def', '../x']) {
+        const r = await post(`/sessions/${encodeURIComponent(id)}/shown`, { momentId: 'm', concepts: ['goal'] });
+        expect([r.statusCode, json(r).message]).toEqual([404, 'Session expired']);
+      }
+      const q = await post('/questions', { viewerName: 'Leo', question: 'What is offside?', sessionId: 'not-a-uuid' });
+      expect([q.statusCode, json(q).message]).toEqual([404, 'Session expired']);
+      const q2 = await post('/questions', { viewerName: 'Leo', question: 'What is offside?', sessionId: 42 });
+      expect(q2.statusCode).toBe(404);
+      const a = await post('/questions/audio', { viewerName: 'Leo', wavBase64: 'AAAA', sessionId: 'zzz' });
+      expect([a.statusCode, json(a).message]).toEqual([404, 'Session expired']);
+      expect(asked).toHaveLength(0);
+      const ok = await post('/questions', { viewerName: 'Leo', question: 'What is offside?', sessionId: await startSession(['Leo']) });
+      expect(ok.statusCode).toBe(200);
+    });
+
+    it('a valid but unknown session UUID is still Session expired', async () => {
+      const r = await post('/sessions/6f1c8f0e-1c0a-4d7e-9a53-0d6f3b1f2a11/shown', { momentId: 'm', concepts: ['goal'] });
+      expect([r.statusCode, json(r).message]).toEqual([404, 'Session expired']);
+    });
+
+    it('sliding TTL: creating a session and reading the household both touch it; a touch failure never breaks the request', async () => {
+      await post('/sessions', { present: ['Leo'] });
+      expect(f.touches).toEqual(['ABC234']);
+      await handler()(ev('GET', '/households/ABC234'));
+      expect(f.touches).toEqual(['ABC234', 'ABC234']);
+      f.touchFail.on = true;
+      expect((await handler()(ev('GET', '/households/ABC234'))).statusCode).toBe(200);
+      expect((await post('/sessions', { present: ['Leo'] })).statusCode).toBe(200);
+      await handler()(ev('GET', '/households/ZZZZZZ'));
+      expect(f.touches).toHaveLength(2); // an unknown code is not touched
     });
 
     it('a question from a viewer not in the session does not reset counts', async () => {
@@ -470,9 +507,11 @@ describe('http handler', () => {
       expect(concepts).toHaveLength(PROMOTE_AT);
       const r = await post('/viewers/leo/got-it', { concepts });
       expect(json(r).promotions).toEqual([{ name: 'Leo', message: 'Leo moved up to Fan' }]);
-      expect(leo()).toMatchObject({ level: 'fan', promotedAutomatically: true });
+      expect(leo()).toMatchObject({ level: 'fan', promotedAutomatically: true, promotedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/) });
+      expect(Math.abs(Date.parse(leo().promotedAt!) - Date.now())).toBeLessThan(5000);
       const u = await post('/viewers/Leo/undo-promotion');
       expect(json(u).viewers[0]).toMatchObject({ level: 'beginner', autoPromotionDisabled: true });
+      expect(leo()).not.toHaveProperty('promotedAt');
       await post('/viewers/Leo/got-it', { concepts: ['red card'] });
       expect(leo().level).toBe('beginner');
     });
