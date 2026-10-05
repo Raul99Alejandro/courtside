@@ -1,21 +1,21 @@
 id: R-04
-rule: "OPEN - when does a Concept count as Understood for a Viewer? (see questions.md Q1)"
-status: proposed
+rule: A Concept becomes Understood for a Viewer when they mark it ("Got it"), or after its basic explanation was shown to them twice without them asking about it; asking about it resets that count to zero.
+status: approved
 kind: deterministic
-source: "spec 2026-10-04 §6 (gap)"
+source: "owner, chat 2026-10-05: Q1 option c"
 examples:
   - id: R-04-a
-    status: proposed
+    status: approved
     given: { viewer: { name: Leo, understood: [] } }
     when: { leo_taps: "Got it", concept: offside }
     then: { understood_by_Leo: [offside] }
   - id: R-04-b
-    status: proposed
+    status: approved
     given: { viewer: { name: Leo, understood: [], seen_basic: { offside: 1 } } }
     when: { moment: { concepts: [offside] }, leo_asks_nothing: true }
     then: { seen_basic: { offside: 2 }, understood_by_Leo: [offside] }
   - id: R-04-c
-    status: proposed
+    status: approved
     given: { viewer: { name: Leo, understood: [], seen_basic: { offside: 1 } } }
     when: { leo_asks: "Why was that offside?" }
     then: { understood_by_Leo: [], seen_basic: { offside: 0 } }
