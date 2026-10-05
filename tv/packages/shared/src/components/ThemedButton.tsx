@@ -23,9 +23,17 @@ export default function ThemedButton({ text, theme, onSelect, primary }: Props) 
             styles.base,
             {
               borderRadius: marker ? px(14) : theme.layout === 'band' ? px(4) : px(10),
-              borderColor: isFocused ? c.focus : marker ? c.text : c.textDim,
-              backgroundColor: isFocused ? c.focus : primary ? c.accent : 'transparent',
-              borderWidth: px(isFocused ? 5 : 3),
+              borderColor: isFocused ? (marker ? c.text : '#FFFFFF') : marker ? c.text : c.textDim,
+              backgroundColor: isFocused
+                ? primary
+                  ? c.accent
+                  : theme.layout === 'whiteboard'
+                    ? c.accent
+                    : c.text
+                : primary
+                  ? c.accent
+                  : 'transparent',
+              borderWidth: px(isFocused ? 6 : 3),
               transform: [{ scale: isFocused ? 1.06 : 1 }],
             },
           ]}

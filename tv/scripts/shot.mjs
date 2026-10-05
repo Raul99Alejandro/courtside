@@ -11,9 +11,11 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });
 page.on('pageerror', (e) => console.error('pageerror:', e.message));
 await page.goto(url, { waitUntil: 'networkidle', timeout: 180000 });
-await page.waitForSelector('text=Data: StatsBomb Open Data', { timeout: 120000 });
+await page.waitForSelector(`text=${process.env.WAIT ?? 'Data: StatsBomb Open Data'}`, { timeout: 120000 });
 await page.evaluate(() => document.fonts.ready);
 await page.waitForTimeout(1000);
+for (const k of (process.env.KEYS ?? '').split(',').filter(Boolean)) { await page.keyboard.press(k); await page.waitForTimeout(300); }
+await page.waitForTimeout(400);
 await page.screenshot({ path: out });
 await browser.close();
 console.log('saved', out);

@@ -11,6 +11,7 @@ export { default as LoadingIndicator } from './components/LoadingIndicator';
 
 // Screens
 export { default as Replay } from './screens/Replay';
+export { default as Watching } from './screens/Watching';
 
 // Data
 export * from './data/match';

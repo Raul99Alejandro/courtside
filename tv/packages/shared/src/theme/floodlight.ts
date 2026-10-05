@@ -31,5 +31,5 @@ export const floodlight: Theme = {
     playerStroke: '#F2F5EE',
     magnets: false,
   },
-  viewer: ['#FFD36B', '#F2F5EE', '#9FD6AE'],
+  viewer: ['#FFD36B', '#F2F5EE', '#9FD6AE', '#7FB8E6'],
 };

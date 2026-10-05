@@ -33,5 +33,5 @@ export const tactics: Theme = {
     magnets: true,
   },
   // sticky notes: yellow, pink, mint
-  viewer: ['#FFE58A', '#FFB3C7', '#B8F0D2'],
+  viewer: ['#FFE58A', '#FFB3C7', '#B8F0D2', '#BFD9F5'],
 };

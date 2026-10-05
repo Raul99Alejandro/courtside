@@ -32,5 +32,5 @@ export const terrace: Theme = {
     playerStroke: '#F4F6FA',
     magnets: false,
   },
-  viewer: ['#F2C230', '#7FB8E6', '#FF6B57'],
+  viewer: ['#F2C230', '#7FB8E6', '#FF6B57', '#F4F6FA'],
 };

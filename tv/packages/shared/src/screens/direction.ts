@@ -4,3 +4,10 @@ import type { Direction } from '../theme/direction';
 export function currentDirection(): Direction {
   return 'a';
 }
+
+export type ScreenName = 'watching' | 'replay' | 'answer' | 'levelup';
+
+/** Native builds start on Who's watching; the web build can open any screen with ?screen=. */
+export function currentScreen(): ScreenName {
+  return 'watching';
+}

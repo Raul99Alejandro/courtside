@@ -9,12 +9,14 @@ interface Props {
   theme: Theme;
   /** viewer name -> identity colour */
   colorOf: (name: string) => string;
+  /** three layers at once: tighter type and, in the band direction, side-by-side columns */
+  dense?: boolean;
 }
 
 const TILT = [-1.4, 1.1, -0.8];
 
 /** One row per layer needed, lowest first, labelled with the viewers it is for (R-08). */
-export default function CardRows({ rows, theme, colorOf }: Props) {
+export default function CardRows({ rows, theme, colorOf, dense }: Props) {
   const c = theme.color;
   const f = theme.font;
 
@@ -47,9 +49,15 @@ export default function CardRows({ rows, theme, colorOf }: Props) {
   }
 
   return (
-    <View style={{ gap: px(theme.layout === 'band' ? 18 : 28) }}>
+    <View
+      style={
+        dense && theme.layout === 'band'
+          ? { flexDirection: 'row', gap: px(40) }
+          : { gap: px(dense ? 18 : theme.layout === 'band' ? 18 : 28) }
+      }
+    >
       {rows.map(r => (
-        <View key={r.layer} style={styles.row}>
+        <View key={r.layer} style={[styles.row, dense && theme.layout === 'band' && { flex: 1 }]}>
           {theme.layout === 'band' ? (
             <View style={styles.scarf}>
               {r.viewers.map(v => (
@@ -61,14 +69,16 @@ export default function CardRows({ rows, theme, colorOf }: Props) {
           )}
           <View style={styles.rowBody}>
             <View style={styles.rowHead}>
-              <Text style={{ fontFamily: f.title, fontSize: px(theme.layout === 'band' ? 48 : 44), color: c.text }}>
+              <Text style={{ fontFamily: f.title, fontSize: px(dense ? 40 : theme.layout === 'band' ? 48 : 44), color: c.text }}>
                 {joinNames(r.viewers)}
               </Text>
               <Text style={{ fontFamily: f.body, fontSize: px(28), color: c.textDim, marginLeft: px(16) }}>
                 {r.layer}
               </Text>
             </View>
-            <Text style={{ fontFamily: f.body, fontSize: px(30), lineHeight: px(42), color: c.text }}>{r.text}</Text>
+            <Text style={{ fontFamily: f.body, fontSize: px(dense ? 28 : 30), lineHeight: px(dense ? 37 : 42), color: c.text }}>
+              {r.text}
+            </Text>
           </View>
         </View>
       ))}
