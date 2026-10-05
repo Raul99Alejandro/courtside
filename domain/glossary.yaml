@@ -1,0 +1,36 @@
+terms:
+  - term: Household
+    definition: The group of people who share one TV; owns the viewer profiles and pairs phones by code.
+    source: "owner, chat 2026-10-04: sala mixta"
+  - term: Viewer
+    definition: A profile for one person in the household, with a Level and the set of Concepts they have understood.
+    not_to_confuse_with: a paired phone (a phone is linked to one Viewer, but is not the Viewer)
+    source: "owner, chat 2026-10-04: perfiles que aprenden"
+  - term: Level
+    definition: How much soccer a Viewer knows - beginner, fan or expert.
+    source: "spec 2026-10-04 §4"
+  - term: Concept
+    definition: A rule or idea of the game that a Moment can teach (penalty kick, offside, yellow card, assist, shot on goal, extra time, penalty shoot-out, ...), from a fixed catalogue.
+    source: "spec 2026-10-04 §6; IFAB Laws of the Game"
+  - term: Event
+    definition: One raw action in the match data (pass, shot, foul, ...) as recorded by StatsBomb.
+    not_to_confuse_with: Moment
+    source: "RC-5"
+  - term: Moment
+    definition: A curated Event worth explaining on TV, with its computed facts (minute, phase, score before and after, zone) and its Concepts.
+    source: "spec 2026-10-04 §4"
+  - term: Layer
+    definition: The depth of an explanation - basic (first match), intermediate (casual fan), tactical (expert).
+    source: "owner, chat 2026-10-04: explicación en capas"
+  - term: Card
+    definition: The on-screen explanation of the current Moment, with one row per Layer needed by the Viewers present.
+    source: "spec 2026-10-04 §4"
+  - term: Understood
+    definition: A Concept marked as known for a specific Viewer, so it is not re-explained to them in basic.
+    source: "owner, chat 2026-10-04: recuerda lo que cada quien ya entendió"
+  - term: Question
+    definition: A free-form question a Viewer asks by voice or text from their phone, answered on the TV at that Viewer's Layer.
+    source: "owner, chat 2026-10-04: celular como micrófono personal"
+  - term: Session
+    definition: One sitting in front of the TV, from "Who's watching?" until the replay is closed.
+    source: "spec 2026-10-04 §4"

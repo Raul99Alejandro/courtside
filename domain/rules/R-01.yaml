@@ -1,0 +1,21 @@
+id: R-01
+rule: Every Moment teaches at least one Concept from the catalogue.
+status: proposed
+kind: deterministic
+source: "spec 2026-10-04 §6"
+examples:
+  - id: R-01-a
+    status: proposed
+    given: { event: { type: Shot, shot_type: Penalty, outcome: Goal } }
+    when: { curate: true }
+    then: { concepts: [penalty kick] }
+  - id: R-01-b
+    status: proposed
+    given: { event: { type: Pass, outcome: Pass Offside } }
+    when: { curate: true }
+    then: { concepts: [offside] }
+  - id: R-01-c
+    status: proposed
+    given: { event: { type: Foul Committed, card: Yellow Card } }
+    when: { curate: true }
+    then: { concepts: [yellow card] }

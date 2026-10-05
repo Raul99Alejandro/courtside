@@ -1,0 +1,20 @@
+{
+  "name": "courtside",
+  "version": "1.0.0",
+  "description": "Courtside explains a soccer match to everyone in the living room at their own level, on Fire TV. It replays real matches from open play-by-play data on a 2D pitch, explains each moment in layers (basic / intermediate / tactical) per viewer, remembers what each viewer already understood, and lets anyone ask a question by voice from their phone.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": "true",
+  "devDependencies": {
+    "yaml": "^2.9.1"
+  }
+}

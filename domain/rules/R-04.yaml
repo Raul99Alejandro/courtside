@@ -1,0 +1,21 @@
+id: R-04
+rule: "OPEN - when does a Concept count as Understood for a Viewer? (see questions.md Q1)"
+status: proposed
+kind: deterministic
+source: "spec 2026-10-04 §6 (gap)"
+examples:
+  - id: R-04-a
+    status: proposed
+    given: { viewer: { name: Leo, understood: [] } }
+    when: { leo_taps: "Got it", concept: offside }
+    then: { understood_by_Leo: [offside] }
+  - id: R-04-b
+    status: proposed
+    given: { viewer: { name: Leo, understood: [], seen_basic: { offside: 1 } } }
+    when: { moment: { concepts: [offside] }, leo_asks_nothing: true }
+    then: { seen_basic: { offside: 2 }, understood_by_Leo: [offside] }
+  - id: R-04-c
+    status: proposed
+    given: { viewer: { name: Leo, understood: [], seen_basic: { offside: 1 } } }
+    when: { leo_asks: "Why was that offside?" }
+    then: { understood_by_Leo: [], seen_basic: { offside: 0 } }

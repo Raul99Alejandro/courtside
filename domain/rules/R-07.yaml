@@ -1,0 +1,11 @@
+id: R-07
+rule: "OPEN - Level values are beginner, fan, expert; who sets them and do they change on their own? (see questions.md Q2)"
+status: proposed
+kind: deterministic
+source: "spec 2026-10-04 §6 (gap)"
+examples:
+  - id: R-07-a
+    status: proposed
+    given: { new_profile: Leo }
+    when: { create: true }
+    then: { asks: "How much soccer do you know?", options: [beginner, fan, expert] }
