@@ -1,8 +1,8 @@
 id: R-08
-rule: "The Card shows one row per Layer needed by the Viewers present, lowest Layer first, each row labelled with its Viewers; OPEN - whose Layer answers a D-pad Why? (see questions.md Q3)"
-status: proposed
+rule: "The Card shows one row per Layer needed by the Viewers present, lowest Layer first, each row labelled with its Viewers; a D-pad Why? (no phone, so no known asker) is answered once, at the lowest Layer present."
+status: approved
 kind: deterministic
-source: "spec 2026-10-04 §4 (gap)"
+source: "spec 2026-10-04 §4; owner, chat 2026-10-05: Q3 option a"
 examples:
   - id: R-08-a
     status: approved
@@ -10,7 +10,7 @@ examples:
     when: { moment: shown }
     then: { rows: [{ layer: basic, viewers: [Leo, Ana] }, { layer: tactical, viewers: [Raul] }] }
   - id: R-08-b
-    status: proposed
+    status: approved
     given: { present: [{ name: Leo, layer: basic }, { name: Raul, layer: tactical }] }
     when: { dpad: "Why?" }
     then: { answer_layer: basic }
