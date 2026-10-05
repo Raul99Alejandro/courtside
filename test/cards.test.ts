@@ -13,3 +13,7 @@ it('definesConcept needs a definition marker', () => {
   expect(definesConcept('Messi was offside twice.', 'offside')).toBe(false);
   expect(definesConcept('Messi scores.', 'offside')).toBe(false);
 });
+it('flags equalises/equalizes for a puts-ahead effect', () => {
+  expect(checkCard('Messi equalises 3-2.', 'intermediate', { effect: 'puts Argentina ahead 3-2' })).toContain('contradicts effect: says level');
+  expect(checkCard('Messi equalizes 3-2.', 'intermediate', { effect: 'puts Argentina ahead 3-2' })).toContain('contradicts effect: says level');
+});

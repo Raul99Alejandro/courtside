@@ -5,7 +5,7 @@ export const BANNED_TERMS = ['World Cup', 'FIFA'];
 /** Any square bracket means a coordinate pair leaked into the text. */
 export const FORBIDDEN_MARKERS = ['['];
 /** Words that say the score is level; wrong when the effect puts a team ahead. */
-export const LEVEL_WORDS = ['ties', 'levels'];
+export const LEVEL_WORDS = ['ties', 'levels', 'equalises', 'equalizes'];
 
 const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const BANNED = BANNED_TERMS.map(t => new RegExp(`\\b${escapeRe(t).replace(/ /g, '\\s*')}\\b`, 'i'));

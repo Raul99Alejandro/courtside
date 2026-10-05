@@ -19,6 +19,6 @@ export const r05: Adapter = (g, w) => {
     max_words: MAX_WORDS[w.generate as keyof typeof MAX_WORDS],
     ...(concept && definesConcept(text, concept) && { defines: concept }),
     ...(score && { must_mention: score }),
-    must_not_mention: w.generate === 'basic' ? [...BANNED_TERMS, ...FORBIDDEN_MARKERS] : LEVEL_WORDS,
+    must_not_mention: w.generate === 'basic' ? [...BANNED_TERMS, ...FORBIDDEN_MARKERS] : LEVEL_WORDS.filter(w => ['ties', 'levels'].includes(w)),
   };
 };
