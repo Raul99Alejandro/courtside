@@ -1,22 +1,72 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Courtside phone</title>
-<link rel="stylesheet" href="/common.css"></head>
-<body><main>
-<h1>Courtside</h1>
-<label for="code">Code on the TV</label>
-<div class="row"><input id="code" maxlength="12" autocomplete="off" autocapitalize="characters"><button id="join">Join</button></div>
-<div id="profiles"></div>
-<div id="add" hidden>
-  <div class="row"><input id="name" maxlength="30" placeholder="Your name">
-    <select id="level"><option value="beginner">Beginner</option><option value="fan">Fan</option><option value="expert">Expert</option></select>
-    <button id="addme">Add me</button></div>
-</div>
-<div id="ask" hidden>
-  <div class="row"><input id="question" maxlength="300" placeholder="Ask anything about the match"><button id="send">Send</button></div>
-  <div class="row"><button id="talk">Tap to ask</button></div>
-  <p class="msg" id="tip">Tip: you can also dictate with your keyboard's microphone key.</p>
-</div>
-<p class="msg" id="msg"></p>
-<div id="answer"></div>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/phone.css"></head>
+<body data-dir="a">
+<div class="frame"><main>
+<header class="top"><span class="brand">Courtside</span><span class="who" id="who" hidden></span></header>
+
+<section class="screen" id="s-join" aria-labelledby="h-join" hidden>
+  <h1 id="h-join">Join the room</h1>
+  <p class="lead">Type the 6-letter code you see on the TV. Scanning the QR code fills it in for you.</p>
+  <label for="code">Code on the TV</label>
+  <input id="code" class="codebox" maxlength="12" autocomplete="off" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" placeholder="ABCDEF">
+  <button id="join" class="btn primary">Join</button>
+</section>
+
+<section class="screen" id="s-pick" aria-labelledby="h-pick" hidden>
+  <h1 id="h-pick">Who are you?</h1>
+  <p class="lead">Tap your name and Courtside answers at your level.</p>
+  <div id="profiles" class="profiles"></div>
+  <div id="add" class="addbox">
+    <h2>Not on the list?</h2>
+    <label for="name">Your name</label>
+    <input id="name" maxlength="30" autocomplete="given-name" placeholder="Your name">
+    <fieldset id="level" class="levels">
+      <legend>How well do you know soccer?</legend>
+      <label class="lv"><input type="radio" name="lv" value="beginner" checked><span class="lvbody"><b>Beginner</b><small>New to soccer. Plain words, no jargon.</small></span></label>
+      <label class="lv"><input type="radio" name="lv" value="fan"><span class="lvbody"><b>Fan</b><small>You watch often. Skips the basics.</small></span></label>
+      <label class="lv"><input type="radio" name="lv" value="expert"><span class="lvbody"><b>Expert</b><small>You read the game. Tactics and detail.</small></span></label>
+    </fieldset>
+    <button id="addme" class="btn primary">Add me</button>
+  </div>
+</section>
+
+<section class="screen" id="s-ask" aria-labelledby="h-ask" hidden>
+  <h1 id="h-ask">Ask about the match</h1>
+  <div class="asker"><span id="askas">Asking as you</span><button id="switch" class="btn link">Not you?</button></div>
+  <label for="question">Type your question</label>
+  <div class="askrow"><input id="question" maxlength="300" placeholder="Why was that offside?" enterkeyhint="send"><button id="send" class="btn primary">Send</button></div>
+  <p class="or" aria-hidden="true">or</p>
+  <button id="talk" class="btn mic" type="button"><span class="micicon" aria-hidden="true"></span><span id="talklabel">Ask with your voice</span></button>
+  <p class="tip" id="tip">Tip: you can also dictate with your keyboard's microphone key.</p>
+  <article id="answerbox" class="answerbox" hidden>
+    <h2 id="asked"></h2>
+    <p id="answer"></p>
+  </article>
+</section>
+
+<section class="screen" id="s-preperm" aria-labelledby="h-preperm" hidden>
+  <h1 id="h-preperm">Ask with your voice</h1>
+  <ul class="steps">
+    <li><b>Tap the button below.</b> Your browser will ask to use the microphone. Choose Allow.</li>
+    <li><b>Courtside listens only while you ask.</b> It records from your tap until you tap again, or for 8 seconds at most.</li>
+    <li><b>Prefer typing?</b> That works the same, and needs no permission.</li>
+  </ul>
+  <button id="allowmic" class="btn primary">Turn on microphone</button>
+  <button id="typeinstead" class="btn secondary">Type instead</button>
+</section>
+
+<section class="screen" id="s-blocked" aria-labelledby="h-blocked" hidden>
+  <h1 id="h-blocked">Microphone is blocked</h1>
+  <p class="lead" id="blockedwhy">Your browser is not letting Courtside use the microphone. You can switch it on again in a few taps.</p>
+  <ol class="steps" id="blockedsteps"></ol>
+  <button id="reload" class="btn primary">I changed it, reload</button>
+  <button id="blockedtype" class="btn secondary">Type instead</button>
+  <p class="tip">Or skip the microphone: tap the question box, then press the microphone key on your keyboard to dictate. No permission needed.</p>
+</section>
+
+<p class="msg" id="msg" role="status" aria-live="polite"></p>
+</main></div>
 <script type="module" src="/phone.ts"></script>
-</main></body></html>
+</body></html>

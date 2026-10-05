@@ -4,57 +4,123 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const msg = $('msg');
 let code = '';
 let me = '';
+let viewers: ViewerInfo[] = [];
 
-$<HTMLInputElement>('code').value = new URLSearchParams(location.search).get('code') ?? '';
+// ---- direction (look only; behaviour is the same in all three) ----
+const FONTS: Record<string, string> = {
+  a: 'family=Barlow+Condensed:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700',
+  b: 'family=Kalam:wght@400;700&family=Archivo:wght@400;600;800',
+  c: 'family=Big+Shoulders+Display:wght@700;800&family=Source+Sans+3:wght@400;600;700',
+};
+const params = new URLSearchParams(location.search);
+const direction = FONTS[params.get('direction') ?? ''] ? (params.get('direction') as string) : 'a';
+document.body.dataset.dir = direction;
+{
+  const l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = `https://fonts.googleapis.com/css2?${FONTS[direction]}&display=swap`;
+  document.head.appendChild(l);
+}
 
-function renderProfiles(viewers: ViewerInfo[]) {
-  $('profiles').replaceChildren(...viewers.map(v => {
+// ---- screens and status ----
+type Screen = 'join' | 'pick' | 'ask' | 'preperm' | 'blocked';
+function show(s: Screen) {
+  for (const n of ['join', 'pick', 'ask', 'preperm', 'blocked']) $('s-' + n).hidden = n !== s;
+  document.body.dataset.screen = s;
+  window.scrollTo(0, 0);
+}
+type Kind = 'busy' | 'error' | 'ok' | '';
+function say(s: string, kind: Kind = '') { text(msg, s); msg.dataset.kind = s ? kind : ''; }
+/** Disables a button and shows what it is doing while an action runs. */
+async function busy<T>(btn: HTMLButtonElement, label: string, work: () => Promise<T>): Promise<T> {
+  const old = btn.textContent;
+  btn.disabled = true; btn.textContent = label; btn.setAttribute('aria-busy', 'true');
+  try { return await work(); }
+  finally { btn.disabled = false; btn.textContent = old; btn.removeAttribute('aria-busy'); }
+}
+
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+$<HTMLInputElement>('code').value = params.get('code') ?? '';
+
+function setMe(name: string, level: string) {
+  me = name;
+  try { sessionStorage.setItem('courtside.me', name); } catch { /* private mode */ }
+  text($('askas'), `Asking as ${name} (${cap(level)})`);
+  const who = $('who'); text(who, name); who.hidden = false;
+}
+
+function renderProfiles(list: ViewerInfo[]) {
+  viewers = list;
+  $('profiles').replaceChildren(...list.map((v, i) => {
     const b = document.createElement('button');
-    b.className = 'chip' + (v.name === me ? ' on' : '');
-    b.textContent = `${v.name} (${v.level})`;
-    b.onclick = () => { me = v.name; renderProfiles(viewers); };
+    b.className = 'btn profile';
+    b.dataset.i = String(i % 4);
+    b.setAttribute('aria-pressed', String(v.name === me));
+    const mark = document.createElement('span'); mark.className = 'mark'; mark.setAttribute('aria-hidden', 'true'); mark.textContent = v.name.charAt(0).toUpperCase();
+    const body = document.createElement('span'); body.className = 'pbody';
+    const n = document.createElement('b'); n.textContent = v.name;
+    const l = document.createElement('small'); l.textContent = cap(v.level);
+    body.append(n, l); b.append(mark, body);
+    b.onclick = () => { setMe(v.name, v.level); say(`You are ${v.name}.`, 'ok'); show('ask'); $<HTMLInputElement>('question').focus({ preventScroll: true }); };
     return b;
   }));
-  $('add').hidden = false;
-  $('ask').hidden = false;
+  $('profiles').hidden = list.length === 0;
+  show('pick');
 }
 
 type Reply = { viewers?: ViewerInfo[]; message?: string };
 
 async function join() {
-  text(msg, '');
-  const typed = $<HTMLInputElement>('code').value;
-  const r = await call<Reply>('GET', `/households/${encodeURIComponent(typed)}`);
-  if (r.status !== 200 || !r.data.viewers) { text(msg, r.data.message ?? 'Something went wrong'); return; }
+  say('');
+  const typed = $<HTMLInputElement>('code').value.trim();
+  if (!typed) { say('Type the code from the TV first.', 'error'); return; }
+  say('Finding your room...', 'busy');
+  const r = await busy($<HTMLButtonElement>('join'), 'Joining...', () => call<Reply>('GET', `/households/${encodeURIComponent(typed)}`));
+  if (r.status !== 200 || !r.data.viewers) { say(r.data.message ?? 'Something went wrong. Check the code and try again.', 'error'); return; }
   code = typed;
+  const u = new URL(location.href); u.searchParams.set('code', typed); history.replaceState(null, '', u);
+  say(r.data.viewers.length ? 'You are in. Pick yourself, or add yourself below.' : 'You are in. Add yourself below.', 'ok');
   renderProfiles(r.data.viewers);
+  let saved = ''; try { saved = sessionStorage.getItem('courtside.me') ?? ''; } catch { /* ignore */ }
+  const mine = r.data.viewers.find(v => v.name === saved);
+  if (mine) { setMe(mine.name, mine.level); say(`Welcome back, ${mine.name}.`, 'ok'); show('ask'); }
 }
 
 async function addMe() {
   const name = $<HTMLInputElement>('name').value;
-  if (!name.trim()) { text(msg, 'Type your name first.'); return; }
-  text(msg, 'Adding...');
-  const level = $<HTMLSelectElement>('level').value;
-  const r = await call<Reply>('POST', `/households/${encodeURIComponent(code)}/viewers`, { name, level });
-  if (r.status !== 200 || !r.data.viewers) { text(msg, r.data.message ?? 'Something went wrong'); return; }
-  me = name.trim();
-  text(msg, '');
+  if (!name.trim()) { say('Type your name first.', 'error'); $('name').focus(); return; }
+  const level = document.querySelector<HTMLInputElement>('input[name="lv"]:checked')?.value ?? 'beginner';
+  say('Adding you...', 'busy');
+  const r = await busy($<HTMLButtonElement>('addme'), 'Adding you...', () => call<Reply>('POST', `/households/${encodeURIComponent(code)}/viewers`, { name, level }));
+  if (r.status !== 200 || !r.data.viewers) { say(r.data.message ?? 'Something went wrong. Try adding yourself again.', 'error'); return; }
+  setMe(name.trim(), level);
   renderProfiles(r.data.viewers);
+  say(`Added. You are ${name.trim()} (${cap(level)}), now on the TV.`, 'ok');
+  show('ask');
 }
 
-function showAnswer(d: { ok?: boolean; answer?: string; message?: string }) {
-  if (d.ok && d.answer) { text(msg, ''); text($('answer'), d.answer); $('answer').className = 'card'; }
-  else text(msg, d.message ?? 'Something went wrong');
+function showAnswer(d: { ok?: boolean; answer?: string; message?: string }, asked = '') {
+  if (d.ok && d.answer) {
+    say('');
+    text($('asked'), asked ? `You asked: ${asked}` : 'Courtside says');
+    text($('answer'), d.answer);
+    $('answerbox').hidden = false;
+    $('answerbox').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  } else say(d.message ?? 'Something went wrong. Try asking again.', 'error');
 }
 
 async function send() {
-  text(msg, 'Thinking...');
-  const body: Record<string, string> = { question: $<HTMLInputElement>('question').value };
+  const q = $<HTMLInputElement>('question').value;
+  if (!q.trim()) { say('Type a question first, or tap the microphone.', 'error'); return; }
+  say('Thinking...', 'busy');
+  $('answerbox').hidden = true;
+  const body: Record<string, string> = { question: q };
   if (me) body.viewerName = me;
   try {
-    const r = await call<{ ok?: boolean; answer?: string; message?: string }>('POST', `/households/${encodeURIComponent(code)}/questions`, body);
-    showAnswer(r.data);
-  } catch { text(msg, 'Could not reach Courtside - check your connection and try again.'); }
+    const r = await busy($<HTMLButtonElement>('send'), 'Sending...', () => call<{ ok?: boolean; answer?: string; message?: string }>('POST', `/households/${encodeURIComponent(code)}/questions`, body));
+    showAnswer(r.data, q.trim());
+  } catch { say('Could not reach Courtside - check your connection and try again.', 'error'); }
 }
 
 const MAX_RECORD_MS = 8000;
@@ -88,14 +154,15 @@ async function toWav(blob: Blob): Promise<Uint8Array> {
 const toBase64 = (b: Uint8Array) => { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
 
 async function sendAudio(blob: Blob) {
-  text(msg, 'Thinking...');
+  say('Thinking...', 'busy');
+  $('answerbox').hidden = true;
   try {
     const wav = await toWav(blob);
     const body: Record<string, string> = { wavBase64: toBase64(wav) };
     if (me) body.viewerName = me;
     const r = await call<{ ok?: boolean; answer?: string; message?: string }>('POST', `/households/${encodeURIComponent(code)}/questions/audio`, body);
-    showAnswer(r.data);
-  } catch { text(msg, "I didn't catch that - try again or type it."); }
+    showAnswer(r.data, 'your question by voice');
+  } catch { say("I didn't catch that - try again or type it.", 'error'); }
 }
 
 let recorder: MediaRecorder | undefined;
@@ -105,6 +172,9 @@ let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
 const DICTATE_TIP = 'Voice works through your keyboard here: tap the question box and press the microphone key to dictate.';
 const micSupported = () => window.isSecureContext && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
+const MIC_KEY = 'courtside.mic';
+const micExplained = () => { try { return localStorage.getItem(MIC_KEY) === '1'; } catch { return false; } };
+const markExplained = () => { try { localStorage.setItem(MIC_KEY, '1'); } catch { /* private mode */ } };
 
 /** Why the mic cannot be used, in words a viewer can act on. */
 function micProblem(err: unknown): string {
@@ -121,6 +191,38 @@ function micProblem(err: unknown): string {
   return `Microphone not available (${name}) - type your question instead.`;
 }
 
+type BlockedKind = 'safari' | 'chrome' | 'other';
+const BLOCKED_STEPS: Record<BlockedKind, string[]> = {
+  safari: [
+    'Tap aA in the address bar, at the left.',
+    'Tap Website Settings.',
+    'Set Microphone to Allow.',
+    'Come back here and tap the button below.',
+  ],
+  chrome: [
+    'Open the iPhone Settings app.',
+    'Scroll down and tap Chrome.',
+    'Turn on Microphone.',
+    'Come back here and tap the button below.',
+  ],
+  other: [
+    'Tap the lock icon in the address bar.',
+    'Open the site settings and set Microphone to Allow.',
+    'Come back here and tap the button below.',
+  ],
+};
+const blockedKind = (): BlockedKind => /CriOS/.test(navigator.userAgent) ? 'chrome' : /iPhone|iPad/.test(navigator.userAgent) ? 'safari' : 'other';
+
+function showBlocked(kind: BlockedKind) {
+  const name = kind === 'chrome' ? 'Chrome' : kind === 'safari' ? 'Safari' : 'Your browser';
+  text($('blockedwhy'), `${name} is not letting Courtside use the microphone. You can switch it on again in a few taps.`);
+  $('blockedsteps').replaceChildren(...BLOCKED_STEPS[kind].map(t => { const li = document.createElement('li'); li.textContent = t; return li; }));
+  say('');
+  show('blocked');
+}
+
+const talkLabel = (s: string) => text($('talklabel'), s);
+
 async function startTalk() {
   if (held || starting) return;
   held = true;
@@ -128,6 +230,7 @@ async function startTalk() {
   try {
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') throw new Error('unsupported');
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    markExplained();
     if (!held) { stream.getTracks().forEach(t => t.stop()); return; } // let go before the mic was ready
     const type = ['audio/mp4', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t));
     const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
@@ -137,15 +240,21 @@ async function startTalk() {
       stream.getTracks().forEach(t => t.stop());
       recorder = undefined;
       held = false;
-      $('talk').textContent = 'Tap to ask';
+      $('talk').classList.remove('live');
+      talkLabel('Ask with your voice');
       if (chunks.length) void sendAudio(new Blob(chunks, { type: rec.mimeType }));
     };
     recorder = rec;
     rec.start();
-    text(msg, 'Listening...');
-    $('talk').textContent = 'Listening - tap to send';
+    say('Listening... tap again to send.', 'busy');
+    $('talk').classList.add('live');
+    talkLabel('Listening - tap to send');
     stopTimer = setTimeout(stopTalk, MAX_RECORD_MS);
-  } catch (err) { held = false; text(msg, micProblem(err)); }
+  } catch (err) {
+    held = false;
+    if ((err as { name?: string })?.name === 'NotAllowedError' && micSupported()) showBlocked(blockedKind());
+    else say(micProblem(err), 'error');
+  }
   finally { starting = false; }
 }
 
@@ -159,9 +268,30 @@ const talk = $('talk');
 // Without in-page recording (some in-app browsers), hide the button and point to keyboard dictation, which needs no permission.
 if (!micSupported()) { talk.hidden = true; text($('tip'), DICTATE_TIP); }
 // Tap to start, tap to send: more reliable on iOS than hold-to-talk (the permission sheet cancels pointer holds).
-talk.addEventListener('click', () => { if (recorder && recorder.state === 'recording') stopTalk(); else void startTalk(); });
+talk.addEventListener('click', () => {
+  if (recorder && recorder.state === 'recording') stopTalk();
+  else if (!micExplained()) { say(''); show('preperm'); }
+  else void startTalk();
+});
+// The real permission request starts inside this tap, so the browser accepts it as a user action.
+$('allowmic').onclick = () => { show('ask'); void startTalk(); };
+const backToAsk = () => { show('ask'); $<HTMLInputElement>('question').focus({ preventScroll: true }); };
+$('typeinstead').onclick = backToAsk;
+$('blockedtype').onclick = backToAsk;
+$('reload').onclick = () => location.reload();
+$('switch').onclick = () => { say(''); renderProfiles(viewers); };
 
 $('join').onclick = () => void join();
 $('addme').onclick = () => void addMe();
 $('send').onclick = () => void send();
-if ($<HTMLInputElement>('code').value) void join();
+$<HTMLInputElement>('code').addEventListener('keydown', e => { if (e.key === 'Enter') void join(); });
+$<HTMLInputElement>('question').addEventListener('keydown', e => { if (e.key === 'Enter') void send(); });
+
+const demo = params.get('demo');
+if (demo) {
+  // Mock states for design review: no API calls. Loaded only when ?demo= is present.
+  void import('./phone-demo.js').then(m => m.runDemo(demo, { show, say, renderProfiles, setMe, showAnswer, showBlocked }));
+} else {
+  show('join');
+  if ($<HTMLInputElement>('code').value) void join();
+}
