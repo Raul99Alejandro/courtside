@@ -1,11 +1,26 @@
 id: R-07
-rule: "OPEN - Level values are beginner, fan, expert; who sets them and do they change on their own? (see questions.md Q2)"
-status: proposed
+rule: Each Viewer picks their Level (beginner, fan, expert) when creating the profile; a beginner moves up to fan automatically once 5 Concepts are Understood, the TV announces it, and the Viewer can undo it. Fan never moves to expert automatically.
+status: approved
 kind: deterministic
-source: "spec 2026-10-04 §6 (gap)"
+source: "owner, chat 2026-10-05: Q2 option b (sube solo, ej. 5)"
 examples:
   - id: R-07-a
-    status: proposed
+    status: approved
     given: { new_profile: Leo }
     when: { create: true }
     then: { asks: "How much soccer do you know?", options: [beginner, fan, expert] }
+  - id: R-07-b
+    status: approved
+    given: { viewer: { name: Leo, level: beginner, understood: [penalty kick, offside, yellow card, assist] } }
+    when: { becomes_understood: shot on goal }
+    then: { level: fan, tv_announces: "Leo moved up to Fan", undo_offered: true }
+  - id: R-07-c
+    status: approved
+    given: { viewer: { name: Leo, level: fan, promoted_automatically: true } }
+    when: { leo_undoes: true }
+    then: { level: beginner, auto_promotion_again: false }
+  - id: R-07-d
+    status: approved
+    given: { viewer: { name: Ana, level: fan, understood_count: 12 } }
+    when: { becomes_understood: extra time }
+    then: { level: fan }
