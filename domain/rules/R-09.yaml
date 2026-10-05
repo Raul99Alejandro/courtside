@@ -1,0 +1,16 @@
+id: R-09
+rule: At most 3 Viewers can be present in a Session; the household can hold more profiles, but "Who's watching?" lets you pick up to 3.
+status: approved
+kind: deterministic
+source: "owner, chat 2026-10-05: Q4 option a"
+examples:
+  - id: R-09-a
+    status: approved
+    given: { picked: [Leo, Ana, Raul] }
+    when: { pick: Sofia }
+    then: { accepted: false, tv_shows: "Up to 3 viewers at a time" }
+  - id: R-09-b
+    status: approved
+    given: { household_profiles: [Leo, Ana, Raul, Sofia], picked: [] }
+    when: { pick: [Sofia, Leo] }
+    then: { accepted: true, present: [Sofia, Leo] }
