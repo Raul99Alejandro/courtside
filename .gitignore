@@ -6,3 +6,4 @@ sources/
 .DS_Store
 spikes/**/data/
 spikes/**/out/
+build/
