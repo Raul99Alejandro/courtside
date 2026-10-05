@@ -1,0 +1,1 @@
+{ "name": "spike-bedrock", "private": true, "type": "module", "dependencies": { "@aws-sdk/client-bedrock-runtime": "^3" } }

@@ -19,3 +19,12 @@ Format per entry (hackathon friction-log fields): task attempted · steps taken 
 - Severity: minor
 - Workaround: cross-check release notes against the sample repo
 - Suggestion: a single "latest" alias per page, one compatibility matrix (SDK × RN × macOS × chip), and install notes inline on each library page
+
+## F-3: Claude models on Bedrock blocked behind an undiscoverable form
+- Task: compare models for TV explanations via the Converse API
+- Steps: listed inference profiles (Claude Haiku 4.5 and Sonnet 5.5 appear), called Converse
+- Expected: models listed for the account are invocable, or the listing says they are not
+- Actual: Haiku → ResourceNotFoundException "Model use case details have not been submitted"; Sonnet 5.5 → AccessDeniedException "not available for this account"; Nova Premier listed but end-of-life
+- Severity: major
+- Workaround: Nova 2 Lite / Nova Pro meanwhile; owner submits the use-case form
+- Suggestion: mark inference profiles the caller cannot invoke (and EOL ones) in list-inference-profiles output
