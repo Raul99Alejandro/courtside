@@ -4,3 +4,8 @@ export type ScreenName = 'watching' | 'replay' | 'answer' | 'levelup';
 export function currentScreen(): ScreenName {
   return 'watching';
 }
+
+/** Demo data (screenshots, visual checks) is only ever used on the web build with ?demo or ?screen=. */
+export function isDemo(): boolean {
+  return false;
+}

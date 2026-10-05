@@ -3,6 +3,8 @@ import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { Platform } from 'react-native';
 import { GoBackConfiguration } from '../app/remote-control/GoBackConfiguration';
 import RootNavigator from './RootNavigator';
+import { LiveBridge } from '../live/LiveBridge';
+import { isDemo } from '../screens/screen';
 
 export interface AppNavigatorProps {
   fontsLoaded?: boolean;
@@ -35,6 +37,7 @@ export default function AppNavigator({ fontsLoaded = true, onReady }: AppNavigat
     <StrictMode>
       <NavigationContainer theme={DarkTheme}>
         <GoBackConfiguration />
+        {!isDemo() && <LiveBridge />}
         <RootNavigator />
       </NavigationContainer>
     </StrictMode>

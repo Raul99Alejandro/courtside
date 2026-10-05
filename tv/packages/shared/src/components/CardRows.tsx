@@ -10,10 +10,12 @@ interface Props {
   rows: CardRow[];
   /** three layers at once: tighter type */
   dense?: boolean;
+  /** a viewer's place in the profile list (their scarf); the demo household unless given */
+  indexOf?: (name: string) => number;
 }
 
 /** One row per layer needed, lowest first, starting with the scarf stripe of each viewer it is for (R-08). */
-export default function CardRows({ rows, dense }: Props) {
+export default function CardRows({ rows, dense, indexOf = householdIndex }: Props) {
   const c = theme.color;
   const f = theme.font;
   return (
@@ -22,7 +24,7 @@ export default function CardRows({ rows, dense }: Props) {
         <View key={r.layer} style={styles.row}>
           <View style={styles.stripes}>
             {r.viewers.map(v => (
-              <ScarfStripe key={v} index={householdIndex(v)} width={px(14)} />
+              <ScarfStripe key={v} index={indexOf(v)} width={px(14)} />
             ))}
           </View>
           <View style={styles.rowBody}>

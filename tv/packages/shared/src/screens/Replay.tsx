@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { DefaultFocus, SpatialNavigationNode, SpatialNavigationRoot } from 'react-tv-space-navigation';
@@ -7,6 +8,8 @@ import { cardRowsFor } from '../data/match';
 import { CARDS, MATCH, MOMENTS } from '../data/matchData';
 import { CONCEPT_DEFINITIONS } from '../data/concept-definitions';
 import { HOUSEHOLD, householdIndex } from '../data/demo-household';
+import { useLive } from '../live';
+import { isDemo } from './screen';
 import { selection } from '../data/picking';
 import { momentDetail, momentName, momentTitle } from '../data/headline';
 import { teamColor, theme } from '../theme/courtside';
@@ -43,25 +46,22 @@ function startViewers(levelUpDemo?: boolean): Viewer[] {
     .map(v => (levelUpDemo && v.name === 'Leo' ? { ...v, level: 'fan' as const, promotedAutomatically: true } : { ...v }));
 }
 
-export default function Replay({ levelUpDemo }: ReplayProps) {
-  const c = theme.color;
+/** What the screen needs from the viewers: demo data in memory, or the live session (state comes from the server). */
+interface ReplayModel {
+  viewers: Viewer[];
+  toast: string | null;
+  indexOf: (name: string) => number;
+  onShown: (m: Moment) => void;
+  gotIt: (basic: string[], m: Moment) => void;
+  undo: () => void;
+}
+
+const promotedName = (toast: string) => toast.replace(/ moved up to .*$/, '');
+
+function useDemoModel(levelUpDemo?: boolean): ReplayModel {
   const [viewers, setViewers] = useState<Viewer[]>(() => startViewers(levelUpDemo));
-  const [selectedId, setSelectedId] = useState(INITIAL);
-  const [why, setWhy] = useState(false);
   const [toast, setToast] = useState<string | null>(levelUpDemo ? 'Leo moved up to Fan' : null);
-
-  const moment = SORTED.find(m => m.id === selectedId) ?? SORTED[0];
-  const rows = useMemo(() => cardRowsFor(moment, viewers, CARDS), [moment, viewers]);
-  const dense = rows.length >= 3;
-  const mine = teamColor(moment.team, '#FFFFFF');
-  const theirs = teamColor(otherTeam(moment), '#888888');
-
-  const onSelectMoment = useCallback((id: string) => {
-    setSelectedId(id);
-    setWhy(false);
-  }, []);
-  const gotIt = useCallback(() => {
-    const basic = rows.find(r => r.layer === 'basic')?.viewers ?? [];
+  const gotIt = useCallback((basic: string[], moment: Moment) => {
     let message: string | null = null;
     setViewers(vs =>
       vs.map(v => {
@@ -76,14 +76,58 @@ export default function Replay({ levelUpDemo }: ReplayProps) {
       }),
     );
     if (message) setToast(message);
-  }, [rows, moment]);
+  }, []);
   const undo = useCallback(() => {
     setViewers(vs => vs.map(v => (v.name === 'Leo' ? undoPromotion(v) : v)));
     setToast(null);
   }, []);
+  return { viewers, toast, indexOf: householdIndex, onShown: () => undefined, gotIt, undo };
+}
+
+function useLiveModel(): ReplayModel {
+  const { state, live } = useLive();
+  const viewers = useMemo(
+    () => state.present.map(n => state.viewers.find(v => v.name === n)).filter((v): v is Viewer => !!v),
+    [state.present, state.viewers],
+  );
+  const toast = state.promotions.length ? state.promotions[state.promotions.length - 1]! : null;
+  return {
+    viewers,
+    toast,
+    indexOf: name => Math.max(0, state.viewers.findIndex(v => v.name === name)),
+    onShown: m => void live.shown(m.id, m.concepts),
+    gotIt: (basic, m) => void live.gotIt(basic, m.concepts),
+    undo: () => void (toast && live.undo(promotedName(toast))),
+  };
+}
+
+const useModel: (levelUpDemo?: boolean) => ReplayModel = isDemo() ? useDemoModel : () => useLiveModel();
+
+export default function Replay({ levelUpDemo }: ReplayProps) {
+  const c = theme.color;
+  const focused = useIsFocused();
+  const model = useModel(levelUpDemo);
+  const { viewers, toast } = model;
+  const [selectedId, setSelectedId] = useState(INITIAL);
+  const [why, setWhy] = useState(false);
+
+  const moment = SORTED.find(m => m.id === selectedId) ?? SORTED[0];
+  const rows = useMemo(() => cardRowsFor(moment, viewers, CARDS), [moment, viewers]);
+  const dense = rows.length >= 3;
+  const mine = teamColor(moment.team, '#FFFFFF');
+  const theirs = teamColor(otherTeam(moment), '#888888');
+
+  const onSelectMoment = useCallback((id: string) => {
+    setSelectedId(id);
+    setWhy(false);
+  }, []);
+  const { onShown } = model;
+  useEffect(() => onShown(moment), [moment.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const gotIt = useCallback(() => model.gotIt(rows.find(r => r.layer === 'basic')?.viewers ?? [], moment), [rows, moment, model]);
+  const undo = model.undo;
 
   return (
-    <SpatialNavigationRoot isActive>
+    <SpatialNavigationRoot isActive={focused}>
       <View style={[styles.screen, { backgroundColor: c.bg }]}>
         <Haze color={c.accent} />
         <SpatialNavigationNode orientation="vertical">
@@ -96,7 +140,7 @@ export default function Replay({ levelUpDemo }: ReplayProps) {
               <View style={styles.slot}>
                 {toast ? (
                   <DefaultFocus>
-                    <Toast text={toast} viewerIndex={householdIndex(toast.split(' ')[0])} onUndo={undo} />
+                    <Toast text={toast} viewerIndex={model.indexOf(promotedName(toast))} onUndo={undo} />
                   </DefaultFocus>
                 ) : (
                   <PitchKey mine={mine} theirs={theirs} mineName={moment.team} theirsName={otherTeam(moment)} />
@@ -111,7 +155,7 @@ export default function Replay({ levelUpDemo }: ReplayProps) {
               <Text style={{ fontFamily: theme.font.bodyBold, fontSize: px(dense ? 30 : 32), color: c.accent, marginBottom: px(dense ? 14 : 22) }}>
                 {momentDetail(moment)}
               </Text>
-              <CardRows rows={rows} dense={dense} />
+              <CardRows rows={rows} dense={dense} indexOf={model.indexOf} />
               {why && (
                 <Text style={{ fontFamily: theme.font.bodyBold, fontSize: px(30), lineHeight: px(40), color: c.accent, marginTop: px(16) }}>
                   {moment.concepts.map(k => CONCEPT_DEFINITIONS[k]).join(' ')}

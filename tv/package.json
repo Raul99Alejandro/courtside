@@ -31,6 +31,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "web": "yarn workspace @courtside/expo web",
     "shot": "node scripts/shot.mjs",
+    "config": "node scripts/gen-config.mjs",
     "test": "yarn workspace @courtside/shared test"
   },
   "devDependencies": {
