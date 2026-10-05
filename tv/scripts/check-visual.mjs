@@ -1,11 +1,10 @@
 // Automated visual checks for gate 2. Needs `yarn web` (port 8082) and the phone page (`npm run web:dev -- --port 5199`) running.
-// Usage: node scripts/check-visual.mjs [--tv] [--phone]   Exit code 1 when any problem is found.
+// Usage: node scripts/check-visual.mjs [--tv] [--phone]  (phone states run at 390 and 360 px wide)   Exit code 1 when any problem is found.
 import { chromium } from 'playwright';
 import AxeBuilder from '@axe-core/playwright';
 
 const TV = process.env.TV_BASE ?? 'http://localhost:8082';
 const PHONE = process.env.PHONE_BASE ?? 'http://localhost:5199';
-const dirs = ['a', 'b', 'c'];
 const tvScreens = [
   ['watching', 'Who'],
   ['replay', 'Data: StatsBomb Open Data'],
@@ -19,7 +18,7 @@ const doPhone = !args.includes('--tv');
 
 // Runs inside the page. Returns raw measurements; verdicts are made in Node.
 function measure({ isTv, W, H }) {
-  const out = { small: [], outside: [], overflow: [], targets: [], hscroll: false };
+  const out = { small: [], outside: [], overflow: [], targets: [], overlap: [], hscroll: false };
   const label = (el) => `${el.tagName.toLowerCase()}${el.getAttribute('data-testid') ? '#' + el.getAttribute('data-testid') : ''} "${(el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 32)}"`;
   const visible = (el) => {
     const cs = getComputedStyle(el);
@@ -67,6 +66,16 @@ function measure({ isTv, W, H }) {
       if (tr.width < 48 || tr.height < 48) out.targets.push(`${label(t)} ${Math.round(tr.width)}x${Math.round(tr.height)}`);
     }
   }
+  // the level-up toast must not cover any other text
+  const toast = document.querySelector('[data-testid=toast]');
+  if (toast) {
+    const t = toast.getBoundingClientRect();
+    for (const el of all) {
+      if (toast.contains(el) || el.contains(toast) || !visible(el) || !hasOwnText(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.left < t.right && r.right > t.left && r.top < t.bottom && r.bottom > t.top) out.overlap.push(`toast covers ${label(el)}`);
+    }
+  }
   return out;
 }
 
@@ -83,12 +92,13 @@ async function checkPage(page, { isTv, W, H }) {
   for (const s of m.overflow) problems.push({ kind: 'overflow', msg: s });
   if (m.hscroll) problems.push({ kind: 'overflow', msg: 'page scrolls horizontally' });
   for (const s of m.targets) problems.push({ kind: 'touch', msg: s });
+  for (const s of m.overlap) problems.push({ kind: 'overlap', msg: s });
   return problems;
 }
 
 const browser = await chromium.launch();
 const rows = [];
-const kinds = ['axe', 'contrast', 'font', 'safe', 'overflow', 'touch'];
+const kinds = ['axe', 'contrast', 'font', 'safe', 'overflow', 'touch', 'overlap'];
 
 async function run(name, url, ctxOpts, wait, opts) {
   const ctx = await browser.newContext(ctxOpts);
@@ -104,13 +114,13 @@ async function run(name, url, ctxOpts, wait, opts) {
 }
 
 if (doTv) {
-  for (const d of dirs) for (const [s, wait] of tvScreens) {
-    await run(`tv ${s} ${d}`, `${TV}/?screen=${s}&direction=${d}`, { viewport: { width: 1920, height: 1080 } }, wait, { isTv: true, W: 1920, H: 1080 });
+  for (const [s, wait] of tvScreens) {
+    await run(`tv ${s}`, `${TV}/?screen=${s}`, { viewport: { width: 1920, height: 1080 } }, wait, { isTv: true, W: 1920, H: 1080 });
   }
 }
 if (doPhone) {
-  for (const d of dirs) for (const s of phoneStates) {
-    await run(`phone ${s} ${d}`, `${PHONE}/phone.html?direction=${d}&demo=${s}`, { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true }, null, { isTv: false, W: 390, H: 844 });
+  for (const s of phoneStates) for (const W of [390, 360]) {
+    await run(`phone ${s} ${W}`, `${PHONE}/phone.html?demo=${s}`, { viewport: { width: W, height: 844 }, deviceScaleFactor: 2, hasTouch: true }, null, { isTv: false, W, H: 844 });
   }
 }
 await browser.close();

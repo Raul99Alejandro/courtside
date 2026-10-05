@@ -21,9 +21,9 @@ export function runDemo(state: string, c: Ctx): void {
     case 'join': c.show('join'); break;
     case 'pick': c.renderProfiles(VIEWERS); c.say('You are in. Pick yourself, or add yourself below.', 'ok'); break;
     case 'ask': c.renderProfiles(VIEWERS); c.setMe('Sofia', 'fan'); c.show('ask'); break;
-    case 'preperm': c.setMe('Sofia', 'fan'); c.show('preperm'); break;
-    case 'blocked-safari': c.setMe('Sofia', 'fan'); c.showBlocked('safari'); break;
-    case 'blocked-chrome': c.setMe('Sofia', 'fan'); c.showBlocked('chrome'); break;
+    case 'preperm': c.renderProfiles(VIEWERS); c.setMe('Sofia', 'fan'); c.show('preperm'); break;
+    case 'blocked-safari': c.renderProfiles(VIEWERS); c.setMe('Sofia', 'fan'); c.showBlocked('safari'); break;
+    case 'blocked-chrome': c.renderProfiles(VIEWERS); c.setMe('Sofia', 'fan'); c.showBlocked('chrome'); break;
     case 'answer':
       c.renderProfiles(VIEWERS); c.setMe('Sofia', 'fan'); c.show('ask');
       (document.getElementById('question') as HTMLInputElement).value = 'Why was that offside?';

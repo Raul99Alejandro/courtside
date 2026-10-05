@@ -23,12 +23,9 @@
   },
   "dependencies": {
     "@courtside/shared": "workspace:*",
-    "@expo-google-fonts/archivo": "^0.4.2",
     "@expo-google-fonts/atkinson-hyperlegible": "^0.4.1",
     "@expo-google-fonts/barlow-condensed": "^0.4.1",
-    "@expo-google-fonts/big-shoulders-display": "^0.2.3",
     "@expo-google-fonts/kalam": "^0.4.1",
-    "@expo-google-fonts/source-sans-3": "^0.4.1",
     "@expo/metro-runtime": "~4.0.0",
     "@expo/vector-icons": "^14.0.0",
     "@react-navigation/drawer": "^7.0.0",

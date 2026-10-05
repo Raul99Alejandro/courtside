@@ -4,7 +4,7 @@ import Watching from '../screens/Watching';
 import Replay from '../screens/Replay';
 import Answer from '../screens/Answer';
 import LevelUp from '../screens/LevelUp';
-import { currentScreen } from '../screens/direction';
+import { currentScreen } from '../screens/screen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 

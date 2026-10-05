@@ -1,10 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Courtside phone</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700&family=Kalam:wght@700&display=swap">
 <link rel="stylesheet" href="/phone.css"></head>
-<body data-dir="a">
+<body>
 <div class="frame"><main>
-<header class="top"><span class="brand">Courtside</span><span class="who" id="who" hidden></span></header>
+<header class="top"><span class="brand">Courtside</span><span class="who" id="who" hidden><span id="whoscarf" aria-hidden="true"></span><span id="whoname"></span></span></header>
 
 <section class="screen" id="s-join" aria-labelledby="h-join" hidden>
   <h1 id="h-join">Join the room</h1>
@@ -48,11 +49,11 @@
 
 <section class="screen" id="s-preperm" aria-labelledby="h-preperm" hidden>
   <h1 id="h-preperm">Ask with your voice</h1>
-  <ul class="steps">
-    <li><b>Tap the button below.</b> Your browser will ask to use the microphone. Choose Allow.</li>
-    <li><b>Courtside listens only while you ask.</b> It records from your tap until you tap again, or for 8 seconds at most.</li>
-    <li><b>Prefer typing?</b> That works the same, and needs no permission.</li>
-  </ul>
+  <div class="notes">
+    <p><b>Tap the button below.</b> Your browser will ask to use the microphone. Choose Allow.</p>
+    <p><b>Courtside listens only while you ask.</b> It records from your tap until you tap again, or for 8 seconds at most.</p>
+    <p><b>Prefer typing?</b> That works the same, and needs no permission.</p>
+  </div>
   <button id="allowmic" class="btn primary">Turn on microphone</button>
   <button id="typeinstead" class="btn secondary">Type instead</button>
 </section>

@@ -1,4 +1,5 @@
 import { call, text, type ViewerInfo } from './api.js';
+import { scarfFor } from '../src/core/scarf.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const msg = $('msg');
@@ -6,21 +7,7 @@ let code = '';
 let me = '';
 let viewers: ViewerInfo[] = [];
 
-// ---- direction (look only; behaviour is the same in all three) ----
-const FONTS: Record<string, string> = {
-  a: 'family=Barlow+Condensed:wght@600;700&family=Atkinson+Hyperlegible:wght@400;700',
-  b: 'family=Kalam:wght@400;700&family=Archivo:wght@400;600;800',
-  c: 'family=Big+Shoulders+Display:wght@700;800&family=Source+Sans+3:wght@400;600;700',
-};
 const params = new URLSearchParams(location.search);
-const direction = FONTS[params.get('direction') ?? ''] ? (params.get('direction') as string) : 'a';
-document.body.dataset.dir = direction;
-{
-  const l = document.createElement('link');
-  l.rel = 'stylesheet';
-  l.href = `https://fonts.googleapis.com/css2?${FONTS[direction]}&display=swap`;
-  document.head.appendChild(l);
-}
 
 // ---- screens and status ----
 type Screen = 'join' | 'pick' | 'ask' | 'preperm' | 'blocked';
@@ -43,11 +30,33 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 $<HTMLInputElement>('code').value = params.get('code') ?? '';
 
+/** The viewer's scarf as an inline SVG (same drawing as the TV): body, two night bands, fringe. width:height is 2:3. */
+function scarfSvg(index: number, width: number): SVGSVGElement {
+  const { color, striped } = scarfFor(index);
+  const ns = 'http://www.w3.org/2000/svg';
+  const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number>) => {
+    const n = document.createElementNS(ns, tag);
+    for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, String(v));
+    return n;
+  };
+  const svg = el('svg', { viewBox: '0 0 40 60', width, height: (width * 3) / 2, 'aria-hidden': 'true', focusable: 'false' });
+  svg.append(el('rect', { x: 4, y: 0, width: 32, height: 48, rx: 1.5, fill: color }));
+  for (const y of striped ? [5, 14, 23, 32, 41] : [32, 40]) svg.append(el('rect', { x: 4, y, width: 32, height: striped ? 4.5 : 4, fill: '#0E1A14' }));
+  [8.5, 14.25, 20, 25.75, 31.5].forEach((x, i) => svg.append(el('line', { x1: x, y1: 48, x2: x, y2: i % 2 ? 56 : 58.5, stroke: color, 'stroke-width': 2.6, 'stroke-linecap': 'round' })));
+  return svg;
+}
+
 function setMe(name: string, level: string) {
   me = name;
   try { sessionStorage.setItem('courtside.me', name); } catch { /* private mode */ }
   text($('askas'), `Asking as ${name} (${cap(level)})`);
-  const who = $('who'); text(who, name); who.hidden = false;
+  // the viewer's place in the household list decides their scarf; an unknown profile gets the first
+  const i = viewers.findIndex(v => v.name === name);
+  document.body.dataset.me = name;
+  document.body.style.setProperty('--scarf', scarfFor(i).color);
+  $('whoscarf').replaceChildren(scarfSvg(i, 26));
+  text($('whoname'), name);
+  $('who').hidden = false;
 }
 
 function renderProfiles(list: ViewerInfo[]) {
@@ -55,9 +64,8 @@ function renderProfiles(list: ViewerInfo[]) {
   $('profiles').replaceChildren(...list.map((v, i) => {
     const b = document.createElement('button');
     b.className = 'btn profile';
-    b.dataset.i = String(i % 4);
-    b.setAttribute('aria-pressed', String(v.name === me));
-    const mark = document.createElement('span'); mark.className = 'mark'; mark.setAttribute('aria-hidden', 'true'); mark.textContent = v.name.charAt(0).toUpperCase();
+        b.setAttribute('aria-pressed', String(v.name === me));
+    const mark = document.createElement('span'); mark.className = 'mark'; mark.setAttribute('aria-hidden', 'true'); mark.append(scarfSvg(i, 40));
     const body = document.createElement('span'); body.className = 'pbody';
     const n = document.createElement('b'); n.textContent = v.name;
     const l = document.createElement('small'); l.textContent = cap(v.level);

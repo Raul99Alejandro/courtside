@@ -1,11 +1,11 @@
 // Usage: node scripts/shot.mjs [url] [outfile] [width] [height]
-// Defaults: http://localhost:8082, shots/replay-a.png, 1920x1080. Needs `yarn web` running.
-// Pass ?direction=a|b|c in the url to pick the visual direction.
+// Defaults: http://localhost:8082, shots/replay.png, 1920x1080. Needs `yarn web` running.
+// Pass ?screen=watching|replay|answer|levelup in the url to pick the screen.
 import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const [url = 'http://localhost:8082/?direction=a', out = 'shots/replay-a.png', w = '1920', h = '1080'] = process.argv.slice(2);
+const [url = 'http://localhost:8082/?screen=replay', out = 'shots/replay.png', w = '1920', h = '1080'] = process.argv.slice(2);
 mkdirSync(dirname(out), { recursive: true });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: Number(w), height: Number(h) } });

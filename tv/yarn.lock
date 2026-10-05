@@ -2135,12 +2135,9 @@ __metadata:
   dependencies:
     "@babel/core": "npm:^7.29.6"
     "@courtside/shared": "workspace:*"
-    "@expo-google-fonts/archivo": "npm:^0.4.2"
     "@expo-google-fonts/atkinson-hyperlegible": "npm:^0.4.1"
     "@expo-google-fonts/barlow-condensed": "npm:^0.4.1"
-    "@expo-google-fonts/big-shoulders-display": "npm:^0.2.3"
     "@expo-google-fonts/kalam": "npm:^0.4.1"
-    "@expo-google-fonts/source-sans-3": "npm:^0.4.1"
     "@expo/metro-runtime": "npm:~4.0.0"
     "@expo/vector-icons": "npm:^14.0.0"
     "@react-native-tvos/config-tv": "npm:^0.0.10"
@@ -2558,13 +2555,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@expo-google-fonts/archivo@npm:^0.4.2":
-  version: 0.4.2
-  resolution: "@expo-google-fonts/archivo@npm:0.4.2"
-  checksum: 10c0/d0404542b44b4a3b1111b0dd1c49b74b46bf5ffe46583e4f65f465924873f05c18078bd2f3ebc17f728e1330ff04c7922f414a8efca8776e5d47f2a2b2093e21
-  languageName: node
-  linkType: hard
-
 "@expo-google-fonts/atkinson-hyperlegible@npm:^0.4.1":
   version: 0.4.1
   resolution: "@expo-google-fonts/atkinson-hyperlegible@npm:0.4.1"
@@ -2579,24 +2569,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@expo-google-fonts/big-shoulders-display@npm:^0.2.3":
-  version: 0.2.3
-  resolution: "@expo-google-fonts/big-shoulders-display@npm:0.2.3"
-  checksum: 10c0/23bfd05fbfffd5debb08664f50e90a6dc86c8d8d7fd26ea251ae62e027435bf3873f5819ef2f8eeb1ec9fa1232a697df2f59dac31bfb2ec3a712e93b02e9a14e
-  languageName: node
-  linkType: hard
-
 "@expo-google-fonts/kalam@npm:^0.4.1":
   version: 0.4.1
   resolution: "@expo-google-fonts/kalam@npm:0.4.1"
   checksum: 10c0/b101e30038a010d5ef425b217de84f08a15e1460f768d7b4f14a7400a224caf2cb7bd2bce248af8809222a92723054002ef2015f0f77d160f5e409316cdd67af
-  languageName: node
-  linkType: hard
-
-"@expo-google-fonts/source-sans-3@npm:^0.4.1":
-  version: 0.4.1
-  resolution: "@expo-google-fonts/source-sans-3@npm:0.4.1"
-  checksum: 10c0/9b4a0198a86005b32bb9302143df4618f3f9702b2504cbd02a81d0f2768436e480518868a50fe119a287fc46b039ebbac0fef35032646611d248958d1005be68
   languageName: node
   linkType: hard
 

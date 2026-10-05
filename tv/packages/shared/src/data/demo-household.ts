@@ -1,4 +1,4 @@
-import { newViewer, type Viewer } from '@courtside/core';
+import { newViewer, scarfFor, type Viewer } from '@courtside/core';
 
 /** Mock household for the design screens. Order fixes each person's identity colour. */
 export const HOUSEHOLD: Viewer[] = [
@@ -23,3 +23,6 @@ export const DEMO_QUESTION = {
   answer:
     'A player is offside when they are closer to the goal than the ball and the second-last defender at the moment the pass is played. The referee gave France a free kick.',
 };
+
+/** A viewer's scarf, from their place in the household list (same helper as the phone page). */
+export const scarfOf = (name: string) => scarfFor(householdIndex(name));
