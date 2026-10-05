@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { togglePick } from './picking';
+import { defaultPick, togglePick } from './picking';
 
 describe('togglePick', () => {
   it('adds a viewer', () => {
@@ -13,5 +13,13 @@ describe('togglePick', () => {
       present: ['Leo', 'Ana', 'Raul'],
       message: 'Up to 3 viewers at a time',
     });
+  });
+});
+
+describe('defaultPick', () => {
+  it('picks everyone in order up to the core limit (R-09)', () => {
+    expect(defaultPick(['Leo', 'Ana', 'Raul', 'Sofia'])).toEqual(['Leo', 'Ana', 'Raul']);
+    expect(defaultPick(['Leo'])).toEqual(['Leo']);
+    expect(defaultPick([])).toEqual([]);
   });
 });

@@ -6,9 +6,27 @@ export const LEVEL_QUESTION = { text: 'How much soccer do you know?', options: [
 
 const BASE: Record<Level, Layer> = { beginner: 'basic', fan: 'intermediate', expert: 'tactical' };
 
-export function newViewer(name: string, level: Level): Viewer {
-  return { name: name.trim(), level, understood: [], seenBasic: {} };
+export function newViewer(name: string, level: Level, order?: number): Viewer {
+  return { name: name.trim(), level, understood: [], seenBasic: {}, ...(order === undefined ? {} : { order }) };
 }
+
+/** Profiles in the order they were created; profiles without an order sort after, by name. */
+export function byCreation<T extends { name: string; order?: number }>(viewers: T[]): T[] {
+  const key = (v: T) => v.name.toLowerCase();
+  return [...viewers].sort((a, b) => {
+    if (a.order !== undefined && b.order !== undefined && a.order !== b.order) return a.order - b.order;
+    if ((a.order === undefined) !== (b.order === undefined)) return a.order === undefined ? 1 : -1;
+    return key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0;
+  });
+}
+
+/** The order the next profile gets: one past the highest so far. */
+export function nextOrder(viewers: { order?: number }[]): number {
+  return viewers.reduce((m, v) => Math.max(m, v.order ?? 0), 0) + 1;
+}
+
+/** The R-07 message, from the viewer after the move. */
+export const promotionMessage = (v: Viewer) => `${v.name} moved up to ${v.level === 'expert' ? 'Expert' : v.level === 'fan' ? 'Fan' : 'Beginner'}`;
 
 const knowsAll = (v: Viewer, cs: Concept[]) => cs.length > 0 && cs.every(c => v.understood.includes(c));
 
@@ -41,7 +59,7 @@ function addUnderstood(v: Viewer, c: Concept): { viewer: Viewer; promotion?: str
   let undoOffered: true | undefined;
   if (viewer.level === 'beginner' && !viewer.autoPromotionDisabled && viewer.understood.length >= PROMOTE_AT) {
     viewer = { ...viewer, level: 'fan', promotedAutomatically: true };
-    promotion = `${viewer.name} moved up to Fan`;
+    promotion = promotionMessage(viewer);
     undoOffered = true;
   }
   return { viewer, promotion, undoOffered };

@@ -3,7 +3,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { DefaultFocus, SpatialNavigationNode, SpatialNavigationRoot } from 'react-tv-space-navigation';
-import { markGotIt, undoPromotion, type Moment, type Viewer } from '@courtside/core';
+import { markGotIt, scarfIndex, undoPromotion, type Moment, type Viewer } from '@courtside/core';
 import { cardRowsFor } from '../data/match';
 import { CARDS, MATCH, MOMENTS } from '../data/matchData';
 import { CONCEPT_DEFINITIONS } from '../data/concept-definitions';
@@ -49,20 +49,21 @@ function startViewers(levelUpDemo?: boolean): Viewer[] {
 /** What the screen needs from the viewers: demo data in memory, or the live session (state comes from the server). */
 interface ReplayModel {
   viewers: Viewer[];
-  toast: string | null;
+  /** Who moved up and the message to show (the server's words, not parsed here). */
+  toast: { name: string; message: string } | null;
+  /** Set while a Got it or Undo is being retried. */
+  problem?: string;
   indexOf: (name: string) => number;
   onShown: (m: Moment) => void;
   gotIt: (basic: string[], m: Moment) => void;
   undo: () => void;
 }
 
-const promotedName = (toast: string) => toast.replace(/ moved up to .*$/, '');
-
 function useDemoModel(levelUpDemo?: boolean): ReplayModel {
   const [viewers, setViewers] = useState<Viewer[]>(() => startViewers(levelUpDemo));
-  const [toast, setToast] = useState<string | null>(levelUpDemo ? 'Leo moved up to Fan' : null);
+  const [toast, setToast] = useState<{ name: string; message: string } | null>(levelUpDemo ? { name: 'Leo', message: 'Leo moved up to Fan' } : null);
   const gotIt = useCallback((basic: string[], moment: Moment) => {
-    let message: string | null = null;
+    let message: { name: string; message: string } | null = null;
     setViewers(vs =>
       vs.map(v => {
         if (!basic.includes(v.name)) return v;
@@ -70,7 +71,7 @@ function useDemoModel(levelUpDemo?: boolean): ReplayModel {
         for (const concept of moment.concepts) {
           const r = markGotIt(acc, concept);
           acc = r.viewer;
-          if (r.promotion) message = r.promotion;
+          if (r.promotion) message = { name: v.name, message: r.promotion };
         }
         return acc;
       }),
@@ -94,10 +95,11 @@ function useLiveModel(): ReplayModel {
   return {
     viewers,
     toast,
-    indexOf: name => Math.max(0, state.viewers.findIndex(v => v.name === name)),
+    problem: state.problem,
+    indexOf: name => scarfIndex(state.viewers, name),
     onShown: m => void live.shown(m.id, m.concepts),
     gotIt: (basic, m) => void live.gotIt(basic, m.concepts),
-    undo: () => void (toast && live.undo(promotedName(toast))),
+    undo: () => void (toast && live.undo(toast.name)),
   };
 }
 
@@ -140,7 +142,7 @@ export default function Replay({ levelUpDemo }: ReplayProps) {
               <View style={styles.slot}>
                 {toast ? (
                   <DefaultFocus>
-                    <Toast text={toast} viewerIndex={model.indexOf(promotedName(toast))} onUndo={undo} />
+                    <Toast text={toast.message} viewerIndex={model.indexOf(toast.name)} onUndo={undo} />
                   </DefaultFocus>
                 ) : (
                   <PitchKey mine={mine} theirs={theirs} mineName={moment.team} theirsName={otherTeam(moment)} />
@@ -161,7 +163,13 @@ export default function Replay({ levelUpDemo }: ReplayProps) {
                   {moment.concepts.map(k => CONCEPT_DEFINITIONS[k]).join(' ')}
                 </Text>
               )}
-              <View style={{ flex: 1 }} />
+              <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+                {model.problem ? (
+                  <Text testID="error-toast" style={{ fontFamily: theme.font.bodyBold, fontSize: px(30), color: c.accent, marginBottom: px(16) }}>
+                    {model.problem}
+                  </Text>
+                ) : null}
+              </View>
               <SpatialNavigationNode orientation="horizontal">
                 <View style={styles.buttons}>
                   <ThemedButton text="Why?" onSelect={() => setWhy(w => !w)} />

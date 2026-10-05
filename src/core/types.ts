@@ -16,6 +16,8 @@ export interface Viewer {
   promotedAutomatically?: boolean;
   /** Set when the viewer undid an automatic promotion; no further automatic promotion (R-07-c). */
   autoPromotionDisabled?: boolean;
+  /** Creation order within the household (1, 2, 3...), set once; the scarf colour follows it for life. Older profiles have none and sort after, by name. */
+  order?: number;
 }
 
 /** The subset of a StatsBomb event the core needs. */

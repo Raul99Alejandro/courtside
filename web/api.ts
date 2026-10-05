@@ -1,5 +1,5 @@
 export interface Config { httpApiUrl: string; wsUrl: string }
-export interface ViewerInfo { name: string; level: string }
+export interface ViewerInfo { name: string; level: string; order?: number }
 
 let config: Promise<Config> | undefined;
 // config.json only exists on a deployed site (the stack generates it). For local dev, copy a config.json

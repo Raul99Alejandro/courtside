@@ -1,5 +1,5 @@
-import type { Concept, Layer, Viewer } from '@courtside/core';
-import { isGone, type ApiResult, type Client, type ViewersReply } from '../api/client';
+import { byCreation, promotionMessage, type Concept, type Layer, type Viewer } from '@courtside/core';
+import { isGone, type ApiResult, type Client, type Promotion, type RecentAnswer } from '../api/client';
 
 export interface KeyValueStorage {
   get(key: string): Promise<string | null>;
@@ -23,34 +23,44 @@ export interface Backend {
 
 export interface AnswerItem {
   id: number;
+  /** The server's id for the answer, so one that came by push and again from the catch-up list shows once. */
+  key?: string;
   label: string;
   layer: Layer;
   question: string;
   answer: string;
 }
 
+export type { Promotion };
+
 export interface LiveState {
   /** A household exists and its viewers are loaded. */
   ready: boolean;
   code?: string;
   siteUrl?: string;
+  /** In creation order (scarf colours follow it). */
   viewers: Viewer[];
   sessionId?: string;
   present: string[];
-  /** "Leo moved up to Fan" messages the toast is showing. */
-  promotions: string[];
+  /** "Leo moved up to Fan" notices the toast is showing: who, and the server's message. */
+  promotions: Promotion[];
   /** Answers pushed from phones; the first is on screen, the rest wait their turn. */
   answers: AnswerItem[];
   /** The moment the TV shows now (the pitch behind an answer). */
   momentId?: string;
   /** A message for Who's watching (household replaced, session ended, ...). */
   notice?: string;
+  /** Set while a Got it or Undo could not be saved and is being retried; Replay shows it as a toast. */
+  problem?: string;
   connected: boolean;
 }
 
 export const CODE_KEY = 'courtside.code';
-const LEVEL_LABEL = { beginner: 'Beginner', fan: 'Fan', expert: 'Expert' } as const;
+export const PROBLEM = 'Could not save that - trying again';
 const RETRY_MS = 5000;
+const RETRY_BASE_MS = 1000;
+const RETRY_MAX_MS = 30_000;
+const SEEN_KEYS = 50;
 
 const NOTICE = {
   householdGone: "This TV's code expired. Here is a new code - add viewers again from your phone.",
@@ -65,7 +75,17 @@ export interface ControllerDeps {
   pollMs?: number;
 }
 
-const promotionMessage = (v: Viewer) => `${v.name} moved up to ${LEVEL_LABEL[v.level]}`;
+/** Something to tell the server that could not get through yet; kept, in order, until it does. */
+type Pending =
+  | { kind: 'shown'; momentId: string; concepts: Concept[]; seq: number }
+  | { kind: 'gotIt'; name: string; concepts: Concept[] }
+  | { kind: 'undo'; name: string };
+
+/** Offline, a timeout, a busy server: worth another try. Anything else is the server's answer. */
+const retryable = (r: { status: number }) => r.status === 0 || r.status === 409 || r.status >= 500;
+
+const validPromotions = (v: unknown): Promotion[] | undefined =>
+  Array.isArray(v) ? v.filter((p): p is Promotion => !!p && typeof p.name === 'string' && typeof p.message === 'string') : undefined;
 
 /**
  * The live session: one household, who is watching, what was shown, answers waiting for the screen.
@@ -79,29 +99,41 @@ export function createController(deps: ControllerDeps) {
   let socket: { start: () => void; stop: () => void } | undefined;
   let bootTimer: ReturnType<typeof setTimeout> | undefined;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
-  let booting = false;
+  let bootRun: Promise<void> | undefined;
   let seq = 0;
   let answerId = 0;
   let lastShown: string | undefined;
-  let pendingShown: { momentId: string; concepts: Concept[] }[] = [];
+  let pending: Pending[] = [];
+  let flushing: Promise<void> | undefined;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let retryDelay = RETRY_BASE_MS;
   let reqCounter = 0;
   let lastApplied = 0;
   let replacing: Promise<void> | undefined;
+  const seenKeys: string[] = [];
 
   const set = (patch: Partial<LiveState>) => {
     state = { ...state, ...patch };
     listeners.forEach(l => l());
   };
 
+  const markSeen = (key: string) => {
+    if (seenKeys.includes(key)) return false;
+    seenKeys.push(key);
+    if (seenKeys.length > SEEN_KEYS) seenKeys.shift();
+    return true;
+  };
+
   /** Applies a viewers snapshot unless a newer one already landed; ends the session if someone in it is gone. */
-  function applyViewers(viewers: Viewer[], req: number, promotions?: string[]) {
+  function applyViewers(viewers: Viewer[], req: number, promotions?: Promotion[]) {
     if (req < lastApplied) return;
     lastApplied = req;
-    const patch: Partial<LiveState> = { viewers };
+    const sorted = byCreation(viewers);
+    const patch: Partial<LiveState> = { viewers: sorted };
     if (promotions?.length) patch.promotions = promotions;
     set(patch);
     if (state.sessionId) {
-      const missing = state.present.find(n => !viewers.some(v => v.name === n));
+      const missing = state.present.find(n => !sorted.some(v => v.name === n));
       if (missing) endSession(NOTICE.viewerGone(missing));
     }
   }
@@ -109,7 +141,7 @@ export function createController(deps: ControllerDeps) {
   function endSession(notice?: string) {
     seq = 0;
     lastShown = undefined;
-    pendingShown = [];
+    pending = pending.filter(p => p.kind !== 'shown'); // what a finished session was shown no longer matters
     set({ sessionId: undefined, present: [], promotions: [], momentId: undefined, notice });
     ensurePoll();
   }
@@ -121,12 +153,22 @@ export function createController(deps: ControllerDeps) {
     }, pollMs);
   }
 
+  /** Answers the server kept that this TV never saw (its socket was down): they join the queue, oldest first. */
+  function catchUp(recent: RecentAnswer[] | undefined) {
+    const fresh = (recent ?? []).filter(a => typeof a.id === 'string' && markSeen(a.id));
+    if (!fresh.length) return;
+    const items = fresh.map<AnswerItem>(a => ({ id: ++answerId, key: a.id, label: a.label, layer: a.layer ?? 'basic', question: a.question, answer: a.answer }));
+    set({ answers: [...state.answers, ...items] });
+  }
+
   async function refresh() {
     if (!backend || !state.code) return;
     const req = ++reqCounter;
     const r = await backend.client.getHousehold(state.code);
-    if (r.ok) applyViewers(r.data.viewers, req);
-    else await handleFailure(r);
+    if (r.ok) {
+      applyViewers(r.data.viewers, req);
+      catchUp(r.data.recentAnswers);
+    } else await handleFailure(r);
   }
 
   /** Household or session or viewer vanished: say so and go back to Who's watching. Returns true when handled. */
@@ -151,11 +193,15 @@ export function createController(deps: ControllerDeps) {
   /** The stored household is gone (expired): start a fresh one so the TV is never stuck. */
   function replaceHousehold(): Promise<void> {
     replacing ??= (async () => {
+      // A boot that is still running may be using the old code: let it finish, then replace what it made.
+      await bootRun?.catch(() => undefined);
       socket?.stop();
       socket = undefined;
       await deps.storage.remove(CODE_KEY);
+      pending = [];
+      clearRetry();
       endSession();
-      set({ ready: false, code: undefined, viewers: [], connected: false });
+      set({ ready: false, code: undefined, viewers: [], connected: false, problem: undefined });
       lastApplied = reqCounter;
       await boot(NOTICE.householdGone);
     })().finally(() => {
@@ -164,12 +210,18 @@ export function createController(deps: ControllerDeps) {
     return replacing;
   }
 
-  async function boot(notice?: string): Promise<void> {
-    if (booting) return;
-    booting = true;
+  /** One boot at a time; a second call (or a replace) waits for the one in flight instead of being dropped. */
+  function boot(notice?: string): Promise<void> {
+    bootRun ??= doBoot(notice).finally(() => {
+      bootRun = undefined;
+    });
+    return bootRun;
+  }
+
+  async function doBoot(notice?: string): Promise<void> {
     if (bootTimer) clearTimeout(bootTimer);
+    bootTimer = undefined;
     const retry = () => {
-      booting = false;
       bootTimer = setTimeout(() => void boot(notice), RETRY_MS);
     };
     try {
@@ -182,8 +234,10 @@ export function createController(deps: ControllerDeps) {
     let message = notice;
     if (code) {
       const r = await backend.client.getHousehold(code);
-      if (r.ok) viewers = r.data.viewers;
-      else if (isGone(r) === 'household') {
+      if (r.ok) {
+        viewers = r.data.viewers;
+        (r.data.recentAnswers ?? []).forEach(a => markSeen(a.id)); // old answers are not replayed at start
+      } else if (isGone(r) === 'household') {
         code = null;
         message = NOTICE.householdGone;
         await deps.storage.remove(CODE_KEY).catch(() => undefined);
@@ -195,15 +249,17 @@ export function createController(deps: ControllerDeps) {
       code = r.data.code;
       await deps.storage.set(CODE_KEY, code).catch(() => undefined);
     }
+    viewers = byCreation(viewers);
     // After a reload the toast comes back from server state: the last automatic promotion can still be undone (R-07).
-    const promotions = viewers.filter(v => v.promotedAutomatically).map(promotionMessage).slice(-1);
+    const promotions = viewers.filter(v => v.promotedAutomatically).map(v => ({ name: v.name, message: promotionMessage(v) })).slice(-1);
     lastApplied = ++reqCounter;
     set({ ready: true, code, siteUrl: backend.siteUrl, viewers, promotions, notice: message });
     socket?.stop();
     socket = backend.openSocket(code, {
       onOpen: () => {
-        void refresh();
-        void flushPending();
+        void refresh(); // viewers and answers that arrived while the socket was down
+        retryDelay = RETRY_BASE_MS;
+        void flush();
       },
       onMessage,
       onGone: () => void replaceHousehold(),
@@ -211,34 +267,83 @@ export function createController(deps: ControllerDeps) {
     });
     socket.start();
     ensurePoll();
-    booting = false;
   }
 
   function onMessage(m: { type?: string; [k: string]: unknown }) {
     if (m.type === 'answer') {
-      const { label, layer, question, answer } = m as Record<string, unknown>;
+      const { label, layer, question, answer, id } = m as Record<string, unknown>;
       if (typeof label !== 'string' || typeof question !== 'string' || typeof answer !== 'string') return;
-      const item: AnswerItem = { id: ++answerId, label, layer: (typeof layer === 'string' ? layer : 'basic') as Layer, question, answer };
+      const key = typeof id === 'string' ? id : undefined;
+      if (key && !markSeen(key)) return; // already shown (it came with a catch-up)
+      const item: AnswerItem = { id: ++answerId, key, label, layer: (typeof layer === 'string' ? layer : 'basic') as Layer, question, answer };
       set({ answers: [...state.answers, item] });
     } else if (m.type === 'viewers' && Array.isArray(m.viewers)) {
-      applyViewers(m.viewers as Viewer[], ++reqCounter, Array.isArray(m.promotions) ? (m.promotions as string[]) : undefined);
+      applyViewers(m.viewers as Viewer[], ++reqCounter, validPromotions(m.promotions));
     }
   }
 
-  async function flushPending() {
-    if (!state.sessionId || !pendingShown.length) return;
-    const todo = pendingShown;
-    pendingShown = [];
-    for (const p of todo) await send(p.momentId, p.concepts);
+  function clearRetry() {
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = undefined;
+    retryDelay = RETRY_BASE_MS;
   }
 
-  async function send(momentId: string, concepts: Concept[]) {
-    if (!backend || !state.code || !state.sessionId) return;
-    const req = ++reqCounter;
-    const r = await backend.client.shown(state.code, state.sessionId, { momentId, concepts, seq: ++seq });
-    if (r.ok) applyViewers(r.data.viewers, req, r.data.promotions);
-    else if (r.status === 0) pendingShown.push({ momentId, concepts });
-    else await handleFailure(r);
+  function scheduleRetry() {
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined;
+      void flush();
+    }, retryDelay);
+    retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
+  }
+
+  /** Sends what is waiting, oldest first; stops at the first failure that is worth retrying and tries again later. */
+  function flush(): Promise<void> {
+    flushing ??= run().finally(() => {
+      flushing = undefined;
+    });
+    return flushing;
+  }
+
+  async function run() {
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = undefined;
+    const promotions: Promotion[] = [];
+    while (pending.length) {
+      const p = pending[0]!;
+      const code = state.code;
+      if (!backend || !code) return;
+      if (p.kind === 'shown' && !state.sessionId) {
+        pending = pending.filter(x => x !== p);
+        continue;
+      }
+      const req = ++reqCounter;
+      let r: ApiResult<{ viewers: Viewer[]; promotions?: Promotion[] }>;
+      if (p.kind === 'shown') r = await backend.client.shown(code, state.sessionId!, { momentId: p.momentId, concepts: p.concepts, seq: p.seq });
+      else if (p.kind === 'gotIt') r = await backend.client.gotIt(code, p.name, p.concepts);
+      else r = await backend.client.undoPromotion(code, p.name);
+      if (!pending.includes(p)) continue; // the household was replaced while this was in the air
+      if (r.ok) {
+        pending = pending.filter(x => x !== p);
+        if (p.kind === 'undo') {
+          applyViewers(r.data.viewers, req);
+          set({ promotions: [] });
+        } else {
+          if (p.kind === 'gotIt') promotions.push(...(r.data.promotions ?? []));
+          applyViewers(r.data.viewers, req, p.kind === 'gotIt' ? promotions : r.data.promotions);
+        }
+        continue;
+      }
+      if (retryable(r)) {
+        set({ problem: pending.some(x => x.kind !== 'shown') ? PROBLEM : undefined });
+        scheduleRetry();
+        return;
+      }
+      pending = pending.filter(x => x !== p);
+      if (!(await handleFailure(r)) && p.kind !== 'shown') set({ notice: r.message });
+    }
+    retryDelay = RETRY_BASE_MS;
+    if (state.problem) set({ problem: undefined });
   }
 
   return {
@@ -262,43 +367,33 @@ export function createController(deps: ControllerDeps) {
       }
       seq = 0;
       lastShown = undefined;
-      pendingShown = [];
+      pending = pending.filter(p => p.kind !== 'shown');
       const fresh = state.viewers.map(v => r.data.viewers.find(x => x.name === v.name) ?? v);
       set({ sessionId: r.data.sessionId, present: r.data.viewers.map(v => v.name), viewers: fresh, momentId: undefined, notice: undefined });
       return { ok: true };
     },
 
-    /** Reports the moment on screen; the server counts views once per viewer per moment per session. */
+    /** Reports the moment on screen; the server counts views once per viewer per moment per session. A failed send is retried. */
     async shown(momentId: string, concepts: Concept[]) {
       if (!state.sessionId || momentId === lastShown) return;
       if (lastShown !== undefined && state.promotions.length) set({ promotions: [] });
       lastShown = momentId;
       set({ momentId });
-      await send(momentId, concepts);
+      pending.push({ kind: 'shown', momentId, concepts, seq: ++seq });
+      await flush();
     },
 
+    /** "Got it" for each viewer on the basic row. Offline or a server error: kept and retried, with a toast on Replay. */
     async gotIt(names: string[], concepts: Concept[]) {
       if (!backend || !state.code) return;
-      const promotions: string[] = [];
-      for (const name of names) {
-        const req = ++reqCounter;
-        const r: ApiResult<ViewersReply> = await backend.client.gotIt(state.code, name, concepts);
-        if (r.ok) {
-          promotions.push(...r.data.promotions);
-          applyViewers(r.data.viewers, req, promotions);
-        } else if (await handleFailure(r)) return;
-        else set({ notice: r.message });
-      }
+      for (const name of names) pending.push({ kind: 'gotIt', name, concepts });
+      await flush();
     },
 
     async undo(name: string) {
       if (!backend || !state.code) return;
-      const req = ++reqCounter;
-      const r = await backend.client.undoPromotion(state.code, name);
-      if (r.ok) {
-        applyViewers(r.data.viewers, req);
-        set({ promotions: [] });
-      } else if (!(await handleFailure(r))) set({ notice: r.message });
+      pending.push({ kind: 'undo', name });
+      await flush();
     },
 
     /** Drops the answer on screen. With an id, only if it is still the one on screen (a timer and Back may both fire). */
@@ -312,7 +407,8 @@ export function createController(deps: ControllerDeps) {
       socket?.stop();
       if (pollTimer) clearInterval(pollTimer);
       if (bootTimer) clearTimeout(bootTimer);
-      pollTimer = bootTimer = undefined;
+      if (retryTimer) clearTimeout(retryTimer);
+      pollTimer = bootTimer = retryTimer = undefined;
     },
   };
 }

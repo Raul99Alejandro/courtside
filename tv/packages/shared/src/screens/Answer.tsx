@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { DefaultFocus, SpatialNavigationNode, SpatialNavigationRoot } from 'react-tv-space-navigation';
-import { answerLayerForQuestion, type Layer, type Moment } from '@courtside/core';
+import { answerLayerForQuestion, scarfIndex, type Layer, type Moment } from '@courtside/core';
 import { CARDS, MATCH, MOMENTS } from '../data/matchData';
 import { DEMO_QUESTION, HOUSEHOLD, householdIndex } from '../data/demo-household';
 import { momentName, momentTitle } from '../data/headline';
@@ -62,11 +62,11 @@ function useLiveModel(): AnswerModel | undefined {
   const cur = state.answers[0];
   if (!cur) return undefined;
   const moment = MOMENTS.find(m => m.id === state.momentId) ?? fallbackMoment();
-  const index = state.viewers.findIndex(v => v.name.toLowerCase() === cur.label.toLowerCase());
+  const asker = state.viewers.find(v => v.name.toLowerCase() === cur.label.toLowerCase());
   return {
     id: cur.id,
     name: cur.label,
-    index: Math.max(0, index),
+    index: asker ? scarfIndex(state.viewers, asker.name) : 0,
     layer: cur.layer,
     question: cur.question,
     answer: cur.answer,

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { addViewer, layerFor, markGotIt, newViewer, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Viewer } from '../core/index.js';
+import { addViewer, byCreation, layerFor, markGotIt, newViewer, nextOrder, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Viewer } from '../core/index.js';
 import { answerQuestion, FALLBACK_ANSWER } from '../explain/answer.js';
 import { postToConnections, type Push } from './push.js';
 import { dynamoStore, type Store } from './store.js';
@@ -12,6 +12,9 @@ export interface HttpEvent {
   requestContext: { http: { method: string } };
 }
 export interface HttpResult { statusCode: number; headers: Record<string, string>; body: string }
+
+/** A moved-up notice with the viewer it is about, so the TV never has to read a name out of the text. */
+export interface Promotion { name: string; message: string }
 
 export interface Deps {
   store: Store;
@@ -60,10 +63,12 @@ export function makeHttpHandler(deps: Deps) {
     catch { answer = FALLBACK_ANSWER; }
     if (!answer || answer === FALLBACK_ANSWER) return reply(200, { ok: false, message: FALLBACK_ANSWER });
 
+    const item = { id: randomUUID(), label: route.label, layer: route.layer, question: text, answer, at: Date.now() };
+    await store.addAnswer(code, item).catch(() => undefined); // best effort: a TV that missed the push catches up from this
     const ids = await store.connections(code);
     if (ids.length) {
       try {
-        const gone = await deps.push(ids, { type: 'answer', label: route.label, layer: route.layer, question: text, answer });
+        const gone = await deps.push(ids, { type: 'answer', ...item });
         await Promise.all(gone.map(id => store.removeConnection(id)));
       } catch { /* the phone still gets its answer */ }
     }
@@ -98,16 +103,22 @@ export function makeHttpHandler(deps: Deps) {
     Array.isArray(v) && v.length <= CONCEPTS.length && v.every(c => CONCEPTS.includes(c as Concept)) ? [...new Set(v as Concept[])] : undefined;
 
   /** The updated viewers go back to the caller and to every TV; promotions carry the "moved up" messages. */
-  async function viewersReply(code: string, viewers: Viewers, promotions: string[]): Promise<HttpResult> {
-    const ids = await store.connections(code);
-    if (ids.length) {
-      try {
-        const gone = await deps.push(ids, { type: 'viewers', viewers, promotions });
-        await Promise.all(gone.map(id => store.removeConnection(id)));
-      } catch { /* the caller still gets the state */ }
-    }
+  async function viewersReply(code: string, viewers: Viewers, promotions: Promotion[]): Promise<HttpResult> {
+    await pushViewers(code, viewers, promotions);
     return reply(200, { viewers, promotions });
   }
+
+  async function pushViewers(code: string, viewers: Viewers, promotions: Promotion[]) {
+    const ids = await store.connections(code);
+    if (!ids.length) return;
+    try {
+      const gone = await deps.push(ids, { type: 'viewers', viewers, promotions });
+      await Promise.all(gone.map(id => store.removeConnection(id)));
+    } catch { /* the caller still gets the state */ }
+  }
+
+  /** Viewers in creation order (scarf colours follow it). */
+  const loadViewers = async (code: string) => { const v = await store.getViewers(code); return v && byCreation(v); };
 
   /** Read-modify-write one viewer with an optimistic version check; retries once on a conflicting write. */
   async function mutate<T extends { viewer: Viewer }>(code: string, name: string, fn: (v: Viewer) => T): Promise<T | undefined> {
@@ -121,7 +132,7 @@ export function makeHttpHandler(deps: Deps) {
   }
   class ConflictError extends Error {}
   const busy = () => fail(409, 'Courtside was busy saving - try again');
-  const freshViewers = async (code: string, fallback: Viewers) => (await store.getViewers(code)) ?? fallback;
+  const freshViewers = async (code: string, fallback: Viewers) => (await loadViewers(code)) ?? fallback;
 
   async function createSession(code: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
     if (!Array.isArray(raw.present) || raw.present.length === 0) return fail(400, 'Pick who is watching');
@@ -135,6 +146,7 @@ export function makeHttpHandler(deps: Deps) {
     }
     const sessionId = randomUUID();
     await store.putSession(code, sessionId, { present });
+    await store.setLatestSession(code, { sessionId });
     return reply(200, { sessionId, viewers: present.map(n => viewers.find(v => v.name === n)!) });
   }
 
@@ -146,7 +158,7 @@ export function makeHttpHandler(deps: Deps) {
     if (!concepts || concepts.length === 0) return fail(400, 'Unknown concept');
     const session = await store.getSession(code, sessionId);
     if (!session) return fail(404, 'Session expired');
-    const promotions: string[] = [];
+    const promotions: Promotion[] = [];
     try {
       for (const name of session.present) {
         const viewer = viewers.find(v => v.name === name);
@@ -155,7 +167,7 @@ export function makeHttpHandler(deps: Deps) {
         try {
           // Re-check the layer on every attempt: a conflicting write may have changed what this viewer understands.
           const r = await mutate(code, name, v => layerFor(v, concepts) === 'basic' ? recordBasicShown(v, concepts) : { viewer: v });
-          if (r && 'promotion' in r && r.promotion) promotions.push(r.promotion);
+          if (r && 'promotion' in r && r.promotion) promotions.push({ name, message: r.promotion });
         } catch (e) {
           await store.releaseShown(code, sessionId, momentId, name).catch(() => undefined); // so a retry still counts the view
           throw e;
@@ -164,7 +176,11 @@ export function makeHttpHandler(deps: Deps) {
     } catch (e) { if (e instanceof ConflictError) return busy(); throw e; }
     const seq = typeof raw.seq === 'number' && Number.isFinite(raw.seq) ? raw.seq : undefined;
     const stale = seq !== undefined && session.seq !== undefined && seq <= session.seq; // an older moment must not replace the current one
-    if (!stale) await store.putSession(code, sessionId, { ...session, momentId, concepts, ...(seq !== undefined ? { seq } : {}) });
+    if (!stale) {
+      await store.putSession(code, sessionId, { ...session, momentId, concepts, ...(seq !== undefined ? { seq } : {}) });
+      const latest = await store.latestSession(code);
+      if (!latest || latest.sessionId === sessionId) await store.setLatestSession(code, { sessionId, momentId });
+    }
     return viewersReply(code, await freshViewers(code, viewers), promotions);
   }
 
@@ -175,8 +191,8 @@ export function makeHttpHandler(deps: Deps) {
     if (!concepts || concepts.length === 0) return fail(400, 'Unknown concept');
     try {
       const r = await mutate(code, viewer.name, v => {
-        let cur = v; const promotions: string[] = [];
-        for (const c of concepts) { const g = markGotIt(cur, c); cur = g.viewer; if (g.promotion) promotions.push(g.promotion); }
+        let cur = v; const promotions: Promotion[] = [];
+        for (const c of concepts) { const g = markGotIt(cur, c); cur = g.viewer; if (g.promotion) promotions.push({ name: viewer.name, message: g.promotion }); }
         return { viewer: cur, promotions };
       });
       return viewersReply(code, await freshViewers(code, viewers), r?.promotions ?? []);
@@ -233,19 +249,25 @@ export function makeHttpHandler(deps: Deps) {
     }
 
     const code = normaliseCode(parts[1] ?? '');
-    const viewers = await store.getViewers(code);
+    const viewers = await loadViewers(code);
     if (!viewers) return fail(404, 'Unknown code');
 
-    if (parts.length === 2 && method === 'GET') return reply(200, { viewers });
+    if (parts.length === 2 && method === 'GET') {
+      // sessionId: the newest session, so a phone can send it with its questions; recentAnswers: for a TV whose socket dropped
+      const [latest, recentAnswers] = await Promise.all([store.latestSession(code), store.recentAnswers(code)]);
+      return reply(200, { viewers, ...(latest ? { sessionId: latest.sessionId } : {}), recentAnswers });
+    }
     if (parts.length === 3 && parts[2] === 'viewers' && method === 'POST') {
       const level = raw.level as Level;
       if (!LEVELS.includes(level)) return fail(400, 'Pick a level');
       if (viewers.length >= MAX_PROFILES_PER_HOUSEHOLD) return fail(400, `A household can have up to ${MAX_PROFILES_PER_HOUSEHOLD} viewers`);
       const name = typeof raw.name === 'string' ? raw.name.slice(0, 30) : '';
-      const r = addViewer(viewers, newViewer(name, level));
+      const r = addViewer(viewers, newViewer(name, level, nextOrder(viewers)));
       if (!r.ok) return fail(400, r.message);
       await store.putViewer(code, r.profiles[r.profiles.length - 1]!);
-      return reply(200, { viewers: r.profiles });
+      const sorted = byCreation(r.profiles);
+      await pushViewers(code, sorted, []); // TVs on Who's watching show the newcomer without polling
+      return reply(200, { viewers: sorted });
     }
     if (parts.length === 3 && parts[2] === 'questions' && method === 'POST') return question(code, viewers, raw);
     if (parts.length === 4 && parts[2] === 'questions' && parts[3] === 'audio' && method === 'POST') return audioQuestion(code, viewers, raw);

@@ -1,13 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newViewer, type Viewer } from '@courtside/core';
-import type { Client } from '../api/client';
+import type { Client, Promotion, RecentAnswer } from '../api/client';
 import { createController, type Backend, type SocketHandlers } from './controller';
 
 const ok = <T>(data: T) => ({ ok: true as const, data });
 const err = (status: number, message: string) => ({ ok: false as const, status, message });
-const leo = newViewer('Leo', 'beginner');
-const ana = newViewer('Ana', 'beginner');
-const raul = newViewer('Raul', 'expert');
+const leo = newViewer('Leo', 'beginner', 1);
+const ana = newViewer('Ana', 'beginner', 2);
+const raul = newViewer('Raul', 'expert', 3);
+const leoUp = { name: 'Leo', message: 'Leo moved up to Fan' };
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const m = new Map(Object.entries(initial));
@@ -17,11 +18,11 @@ function memoryStorage(initial: Record<string, string> = {}) {
 function setup(over: Partial<Record<keyof Client, ReturnType<typeof vi.fn>>> = {}, stored: Record<string, string> = { 'courtside.code': 'ABC234' }) {
   const client = {
     createHousehold: vi.fn(async () => ok({ householdId: 'h2', code: 'NEW234' })),
-    getHousehold: vi.fn(async () => ok({ viewers: [leo, ana, raul] })),
+    getHousehold: vi.fn(async () => ok({ viewers: [leo, ana, raul], recentAnswers: [] as RecentAnswer[] })),
     createSession: vi.fn(async (_c: string, present: string[]) => ok({ sessionId: 's1', viewers: [leo, ana, raul].filter(v => present.includes(v.name)) })),
-    shown: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: [] as string[] })),
-    gotIt: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: [] as string[] })),
-    undoPromotion: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: [] as string[] })),
+    shown: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] })),
+    gotIt: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] })),
+    undoPromotion: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] })),
     ...over,
   };
   let handlers!: SocketHandlers;
@@ -130,12 +131,12 @@ describe('shown', () => {
 
   it('takes viewers and promotions from the response', async () => {
     const promoted: Viewer = { ...leo, level: 'fan', promotedAutomatically: true };
-    const { live } = setup({ shown: vi.fn(async () => ok({ viewers: [promoted, ana, raul], promotions: ['Leo moved up to Fan'] })) });
+    const { live } = setup({ shown: vi.fn(async () => ok({ viewers: [promoted, ana, raul], promotions: [leoUp] })) });
     await live.boot();
     await live.startSession(['Leo']);
     await live.shown('m1', ['offside']);
     expect(live.getState().viewers[0]).toEqual(promoted);
-    expect(live.getState().promotions).toEqual(['Leo moved up to Fan']);
+    expect(live.getState().promotions).toEqual([leoUp]);
   });
 
   it('review 3: a failed send is retried when the socket reconnects', async () => {
@@ -178,18 +179,18 @@ describe('got it and undo', () => {
   it('marks got-it for each viewer in turn and keeps every promotion', async () => {
     const gotIt = vi
       .fn()
-      .mockResolvedValueOnce(ok({ viewers: [leo, ana, raul], promotions: ['Leo moved up to Fan'] }))
+      .mockResolvedValueOnce(ok({ viewers: [leo, ana, raul], promotions: [leoUp] }))
       .mockResolvedValueOnce(ok({ viewers: [leo, ana, raul], promotions: [] }));
     const { live } = setup({ gotIt });
     await live.boot();
     await live.startSession(['Leo', 'Ana']);
     await live.gotIt(['Leo', 'Ana'], ['offside']);
     expect(gotIt.mock.calls.map(c => [c[1], c[2]])).toEqual([['Leo', ['offside']], ['Ana', ['offside']]]);
-    expect(live.getState().promotions).toEqual(['Leo moved up to Fan']);
+    expect(live.getState().promotions).toEqual([leoUp]);
   });
 
   it('undo calls the server and clears the toast', async () => {
-    const { live, client } = setup({ shown: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: ['Leo moved up to Fan'] })) });
+    const { live, client } = setup({ shown: vi.fn(async () => ok({ viewers: [leo, ana, raul], promotions: [leoUp] })) });
     await live.boot();
     await live.startSession(['Leo']);
     await live.shown('m1', ['offside']);
@@ -202,14 +203,14 @@ describe('got it and undo', () => {
     const promoted: Viewer = { ...leo, level: 'fan', promotedAutomatically: true };
     const { live, client } = setup({ getHousehold: vi.fn(async () => ok({ viewers: [promoted, ana] })) });
     await live.boot();
-    expect(live.getState().promotions).toEqual(['Leo moved up to Fan']);
+    expect(live.getState().promotions).toEqual([leoUp]);
     await live.undo('Leo');
     expect(client.undoPromotion).toHaveBeenCalledWith('ABC234', 'Leo');
     expect(live.getState().promotions).toEqual([]);
   });
 
   it('the toast ends when the viewers move to another moment', async () => {
-    const shown = vi.fn().mockResolvedValueOnce(ok({ viewers: [leo], promotions: ['Leo moved up to Fan'] })).mockResolvedValue(ok({ viewers: [leo], promotions: [] }));
+    const shown = vi.fn().mockResolvedValueOnce(ok({ viewers: [leo], promotions: [leoUp] })).mockResolvedValue(ok({ viewers: [leo], promotions: [] }));
     const { live } = setup({ shown });
     await live.boot();
     await live.startSession(['Leo']);
@@ -292,5 +293,262 @@ describe('household gone', () => {
     expect(live.getState().connected).toBe(true);
     handlers().onState(false);
     expect(live.getState().connected).toBe(false);
+  });
+});
+
+describe('fix round 1: Got it and Undo that cannot get through', () => {
+  const okViewers = (promotions: Promotion[] = []) => ok({ viewers: [leo, ana, raul], promotions });
+
+  it('offline Got it is queued, shows the retry problem, and is sent again with backoff (1 s, then 2 s)', async () => {
+    const gotIt = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(okViewers([leoUp]));
+    const { live } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo'], ['offside']);
+    expect(gotIt).toHaveBeenCalledTimes(1);
+    expect(live.getState().problem).toMatch(/trying again/i);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(gotIt).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(gotIt).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(gotIt).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(gotIt).toHaveBeenCalledTimes(3);
+    expect(live.getState().problem).toBeUndefined();
+    expect(live.getState().promotions).toEqual([leoUp]);
+  });
+
+  it('a 5xx is retried the same way', async () => {
+    const gotIt = vi.fn().mockResolvedValueOnce(err(503, 'Courtside had a problem')).mockResolvedValue(okViewers());
+    const { live } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo'], ['offside']);
+    expect(live.getState().problem).toBeDefined();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(gotIt).toHaveBeenCalledTimes(2);
+    expect(live.getState().problem).toBeUndefined();
+  });
+
+  it('keeps the order of what waits: a failed Got it for Leo goes out before Ana', async () => {
+    const gotIt = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(okViewers());
+    const { live } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo', 'Ana']);
+    await live.gotIt(['Leo', 'Ana'], ['offside']);
+    expect(gotIt).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(gotIt.mock.calls.map(c => c[1])).toEqual(['Leo', 'Leo', 'Ana']);
+  });
+
+  it('a socket reconnect sends it at once instead of waiting for the timer', async () => {
+    const gotIt = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(okViewers());
+    const { live, handlers } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo'], ['offside']);
+    handlers().onOpen();
+    await settle();
+    expect(gotIt).toHaveBeenCalledTimes(2);
+    expect(live.getState().problem).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(gotIt).toHaveBeenCalledTimes(2);
+  });
+
+  it('offline Undo is queued and retried, and the toast clears once it lands', async () => {
+    const undoPromotion = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(okViewers());
+    const { live } = setup({ undoPromotion, shown: vi.fn(async () => okViewers([leoUp])) });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.shown('m1', ['offside']);
+    await live.undo('Leo');
+    expect(live.getState().problem).toBeDefined();
+    expect(live.getState().promotions).toEqual([leoUp]); // still undoable while it is retried
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(undoPromotion).toHaveBeenCalledTimes(2);
+    expect(live.getState().promotions).toEqual([]);
+    expect(live.getState().problem).toBeUndefined();
+  });
+
+  it('a refusal that is not worth retrying (400) is dropped with the server message', async () => {
+    const gotIt = vi.fn(async () => err(400, 'Unknown concept'));
+    const { live } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo'], ['offside']);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(gotIt).toHaveBeenCalledTimes(1);
+    expect(live.getState().notice).toBe('Unknown concept');
+    expect(live.getState().problem).toBeUndefined();
+  });
+
+  it('a household that vanished while retrying drops the queue and starts fresh', async () => {
+    const gotIt = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(err(404, 'Unknown code'));
+    const { live } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo'], ['offside']);
+    await vi.advanceTimersByTimeAsync(1000);
+    await settle();
+    expect(live.getState().code).toBe('NEW234');
+    expect(live.getState().problem).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(gotIt).toHaveBeenCalledTimes(2);
+  });
+
+  it('stop() ends the retries', async () => {
+    const gotIt = vi.fn(async () => err(0, 'offline'));
+    const { live, socket } = setup({ gotIt });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.gotIt(['Leo'], ['offside']);
+    live.stop();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(gotIt).toHaveBeenCalledTimes(1);
+    expect(socket.stop).toHaveBeenCalled();
+  });
+});
+
+describe('fix round 1: shown retried with backoff', () => {
+  it('a 5xx on shown is retried by timer (no reconnect needed), keeping its seq', async () => {
+    const shown = vi.fn().mockResolvedValueOnce(err(500, 'oops')).mockResolvedValue(ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
+    const { live } = setup({ shown });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.shown('m1', ['offside']);
+    expect(live.getState().problem).toBeUndefined(); // shown retries stay quiet
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(shown).toHaveBeenCalledTimes(2);
+    expect(shown.mock.calls.map(c => [c[2].momentId, c[2].seq])).toEqual([['m1', 1], ['m1', 1]]);
+  });
+
+  it('a retried older moment goes out before the newer one and keeps its lower seq', async () => {
+    const shown = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(ok({ viewers: [leo, ana, raul], promotions: [] as Promotion[] }));
+    const { live } = setup({ shown });
+    await live.boot();
+    await live.startSession(['Leo']);
+    await live.shown('m1', ['offside']);
+    await live.shown('m2', ['goal']);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(shown.mock.calls.map(c => [c[2].momentId, c[2].seq])).toEqual([['m1', 1], ['m1', 1], ['m2', 2]]);
+  });
+});
+
+describe('fix round 1: boot and replace', () => {
+  it('a replace that lands while a boot is in flight waits for it and still ends with a ready TV on a new household', async () => {
+    let release!: (v: unknown) => void;
+    const getHousehold = vi
+      .fn()
+      .mockResolvedValueOnce(ok({ viewers: [leo] }))
+      .mockImplementationOnce(() => new Promise(r => (release = r)));
+    const { live, handlers, storage } = setup({ getHousehold });
+    await live.boot();
+    const first = handlers();
+    const second = live.boot(); // e.g. the app resumed: a boot is in flight with the old socket still open
+    await settle();
+    first.onGone(); // the old socket learns the household is gone, mid-boot
+    await settle();
+    release(ok({ viewers: [leo] }));
+    await second;
+    await settle();
+    await settle();
+    expect(live.getState()).toMatchObject({ ready: true, code: 'NEW234', viewers: [] });
+    expect(live.getState().notice).toMatch(/new code/i);
+    expect(storage.m.get('courtside.code')).toBe('NEW234');
+  });
+
+  it('a boot that fails offline during a replace keeps retrying instead of sticking', async () => {
+    const createHousehold = vi.fn().mockResolvedValueOnce(err(0, 'offline')).mockResolvedValue(ok({ householdId: 'h2', code: 'NEW234' }));
+    const { live, handlers } = setup({ createHousehold });
+    await live.boot();
+    handlers().onGone();
+    await settle();
+    expect(live.getState().ready).toBe(false);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(live.getState()).toMatchObject({ ready: true, code: 'NEW234' });
+  });
+
+  it('boot after stop() starts the socket again (app remount)', async () => {
+    const { live, socket } = setup();
+    await live.boot();
+    live.stop();
+    await live.boot();
+    expect(socket.start).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('fix round 1: reconnect, viewers and missed answers', () => {
+  it('onOpen after a reconnect fetches the household again', async () => {
+    const { live, client, handlers } = setup();
+    await live.boot();
+    client.getHousehold.mockClear();
+    client.getHousehold.mockResolvedValue(ok({ viewers: [leo, ana, raul, newViewer('Mia', 'fan', 4)], recentAnswers: [] }));
+    handlers().onOpen();
+    await settle();
+    expect(client.getHousehold).toHaveBeenCalledWith('ABC234');
+    expect(live.getState().viewers.map(v => v.name)).toEqual(['Leo', 'Ana', 'Raul', 'Mia']);
+  });
+
+  it('a viewer added from a phone mid-session appears from the push, with no polling', async () => {
+    const { live, client, handlers } = setup();
+    await live.boot();
+    await live.startSession(['Leo']);
+    client.getHousehold.mockClear();
+    const mia = newViewer('Mia', 'fan', 4);
+    handlers().onMessage({ type: 'viewers', viewers: [leo, ana, raul, mia], promotions: [] });
+    expect(live.getState().viewers.map(v => v.name)).toEqual(['Leo', 'Ana', 'Raul', 'Mia']);
+    expect(live.getState().sessionId).toBe('s1'); // the session carries on
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(client.getHousehold).not.toHaveBeenCalled();
+  });
+
+  it('viewers are kept in creation order, whatever order they arrive in', async () => {
+    const { live, handlers } = setup();
+    await live.boot();
+    handlers().onMessage({ type: 'viewers', viewers: [raul, ana, leo], promotions: [] });
+    expect(live.getState().viewers.map(v => v.name)).toEqual(['Leo', 'Ana', 'Raul']);
+  });
+
+  const rec = (id: string, q: string): RecentAnswer => ({ id, label: 'Leo', layer: 'basic', question: q, answer: `A: ${q}`, at: 1 });
+
+  it('answers that came while the socket was down are queued on reconnect, oldest first, once', async () => {
+    const { live, client, handlers } = setup();
+    await live.boot();
+    client.getHousehold.mockResolvedValue(ok({ viewers: [leo], recentAnswers: [rec('a1', 'one'), rec('a2', 'two')] }));
+    handlers().onOpen();
+    await settle();
+    expect(live.getState().answers.map(a => a.question)).toEqual(['one', 'two']);
+    handlers().onOpen();
+    await settle();
+    expect(live.getState().answers).toHaveLength(2);
+  });
+
+  it('an answer already shown from the push is not queued again by the catch-up', async () => {
+    const { live, client, handlers } = setup();
+    await live.boot();
+    handlers().onMessage({ type: 'answer', id: 'a1', label: 'Leo', layer: 'basic', question: 'one', answer: 'A: one' });
+    live.dismissAnswer(live.getState().answers[0]!.id);
+    client.getHousehold.mockResolvedValue(ok({ viewers: [leo], recentAnswers: [rec('a1', 'one'), rec('a2', 'two')] }));
+    handlers().onOpen();
+    await settle();
+    expect(live.getState().answers.map(a => a.question)).toEqual(['two']);
+  });
+
+  it('a push that arrives after the catch-up already queued it is ignored', async () => {
+    const { live, client, handlers } = setup();
+    await live.boot();
+    client.getHousehold.mockResolvedValue(ok({ viewers: [leo], recentAnswers: [rec('a1', 'one')] }));
+    handlers().onOpen();
+    await settle();
+    handlers().onMessage({ type: 'answer', id: 'a1', label: 'Leo', layer: 'basic', question: 'one', answer: 'A: one' });
+    expect(live.getState().answers).toHaveLength(1);
+  });
+
+  it('answers the server still holds when the TV starts are not replayed', async () => {
+    const { live } = setup({ getHousehold: vi.fn(async () => ok({ viewers: [leo], recentAnswers: [rec('a1', 'old')] })) });
+    await live.boot();
+    await vi.advanceTimersByTimeAsync(10_000); // a poll too
+    expect(live.getState().answers).toEqual([]);
   });
 });

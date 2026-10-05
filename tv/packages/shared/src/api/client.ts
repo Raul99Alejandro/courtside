@@ -1,13 +1,35 @@
-import type { Concept, Viewer } from '@courtside/core';
+import type { Concept, Layer, Viewer } from '@courtside/core';
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number; message: string };
 
 export const NETWORK_ERROR = 'Could not reach Courtside - check the internet connection.';
 const TIMEOUT_MS = 10_000;
 
+/** A moved-up notice with the viewer it is about (the server builds both). */
+export interface Promotion {
+  name: string;
+  message: string;
+}
+
 export interface ViewersReply {
   viewers: Viewer[];
-  promotions: string[];
+  promotions: Promotion[];
+}
+
+/** An answer the server kept for a TV whose socket dropped. */
+export interface RecentAnswer {
+  id: string;
+  label: string;
+  layer: Layer;
+  question: string;
+  answer: string;
+  at: number;
+}
+
+export interface HouseholdReply {
+  viewers: Viewer[];
+  sessionId?: string;
+  recentAnswers?: RecentAnswer[];
 }
 
 /** Which thing went missing, from the backend's friendly 404/400 messages. */
@@ -53,7 +75,7 @@ export function createClient(baseUrl: string, fetchImpl: typeof fetch = (...a) =
 
   return {
     createHousehold: () => call<{ householdId: string; code: string }>('POST', '/households'),
-    getHousehold: (code: string) => call<{ viewers: Viewer[] }>('GET', `/households/${enc(code)}`),
+    getHousehold: (code: string) => call<HouseholdReply>('GET', `/households/${enc(code)}`),
     createSession: (code: string, present: string[]) => call<{ sessionId: string; viewers: Viewer[] }>('POST', `/households/${enc(code)}/sessions`, { present }),
     shown: (code: string, sessionId: string, body: { momentId: string; concepts: Concept[]; seq: number }) =>
       call<ViewersReply>('POST', `/households/${enc(code)}/sessions/${enc(sessionId)}/shown`, body),

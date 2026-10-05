@@ -33,6 +33,9 @@ export function liveController(): Controller {
   if (!controller) {
     controller = createController({ backend, storage });
     void controller.boot();
+    // A read-only window into the state, for scripts/e2e-live.mjs (web only).
+    const w = globalThis as { __courtside?: { state: () => LiveState } };
+    if (typeof document !== 'undefined') w.__courtside = { state: () => controller!.getState() };
   }
   return controller;
 }

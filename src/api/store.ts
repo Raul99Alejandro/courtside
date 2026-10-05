@@ -11,6 +11,14 @@ export const SESSION_TTL_S = 24 * 3600;
 /** A viewing session: who is in the room and the moment the TV shows now (so a question can reset that concept's view count, R-04-c). */
 export interface Session { present: string[]; momentId?: string; concepts?: string[]; /** Highest moment sequence number the TV has sent; an older one never replaces the current moment. */ seq?: number }
 
+/** An answer pushed to the TV, kept for an hour so a TV whose socket dropped can catch up. */
+export interface RecentAnswer { id: string; label: string; layer: string; question: string; answer: string; /** epoch ms */ at: number }
+export const RECENT_ANSWERS = 5;
+export const ANSWER_TTL_S = 3600;
+
+/** The newest session of a household and the moment it shows now (phones send the id with their questions, R-04-c). */
+export interface LatestSession { sessionId: string; momentId?: string }
+
 /** What the handlers need from storage; tests pass a fake. */
 export interface Store {
   createHousehold(): Promise<{ householdId: string; code: string }>;
@@ -27,6 +35,12 @@ export interface Store {
   claimShown(code: string, sessionId: string, momentId: string, viewer: string): Promise<boolean>;
   /** Gives a claim back when the write it guarded failed, so a retry counts the view. */
   releaseShown(code: string, sessionId: string, momentId: string, viewer: string): Promise<void>;
+  latestSession(code: string): Promise<LatestSession | undefined>;
+  setLatestSession(code: string, latest: LatestSession): Promise<void>;
+  /** Remembers an answer (the last RECENT_ANSWERS, for an hour). */
+  addAnswer(code: string, a: RecentAnswer): Promise<void>;
+  /** The kept answers, oldest first. */
+  recentAnswers(code: string): Promise<RecentAnswer[]>;
   addConnection(code: string, connectionId: string): Promise<void>;
   removeConnection(connectionId: string): Promise<void>;
   connections(code: string): Promise<string[]>;
@@ -118,6 +132,31 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
     },
     async releaseShown(code, sessionId, momentId, viewer) {
       await doc.send(new DeleteCommand({ TableName: table, Key: { pk: hh(code), sk: `SHOWN#${sessionId}#${momentId}#${viewer.toLowerCase()}` } }));
+    },
+    async latestSession(code) {
+      const r = await doc.send(new GetCommand({ TableName: table, Key: { pk: hh(code), sk: 'META' } }));
+      return r.Item?.latest as LatestSession | undefined;
+    },
+    async setLatestSession(code, latest) {
+      try {
+        await doc.send(new UpdateCommand({
+          TableName: table, Key: { pk: hh(code), sk: 'META' }, ConditionExpression: 'attribute_exists(pk)',
+          UpdateExpression: 'SET #l = :l', ExpressionAttributeNames: { '#l': 'latest' }, ExpressionAttributeValues: { ':l': latest },
+        }));
+      } catch (err) {
+        if ((err as { name?: string }).name !== 'ConditionalCheckFailedException') throw err;
+      }
+    },
+    async addAnswer(code, a) {
+      await doc.send(new PutCommand({ TableName: table, Item: { pk: hh(code), sk: `ANS#${String(a.at).padStart(15, '0')}#${a.id}`, answer: a, ttl: now() + ANSWER_TTL_S } }));
+    },
+    async recentAnswers(code) {
+      const r = await doc.send(new QueryCommand({
+        TableName: table, KeyConditionExpression: 'pk = :pk AND begins_with(sk, :p)',
+        ExpressionAttributeValues: { ':pk': hh(code), ':p': 'ANS#' }, ScanIndexForward: false, Limit: RECENT_ANSWERS,
+      }));
+      const cutoff = Date.now() - ANSWER_TTL_S * 1000; // DynamoDB deletes expired items late
+      return (r.Items ?? []).map(i => i.answer as RecentAnswer).filter(a => a.at > cutoff).reverse();
     },
     async addConnection(code, connectionId) {
       const ttl = now() + CONNECTION_TTL_S;

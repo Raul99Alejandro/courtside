@@ -1,11 +1,12 @@
 import { call, text, type ViewerInfo } from './api.js';
-import { scarfFor } from '../src/core/scarf.js';
+import { scarfFor, scarfIndex } from '../src/core/scarf.js';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const msg = $('msg');
 let code = '';
 let me = '';
 let viewers: ViewerInfo[] = [];
+let sessionId = ''; // the newest viewing session on the TV; sent with questions so a question can reset what was just shown (R-04-c)
 
 const params = new URLSearchParams(location.search);
 
@@ -50,8 +51,8 @@ function setMe(name: string, level: string) {
   me = name;
   try { sessionStorage.setItem('courtside.me', name); } catch { /* private mode */ }
   text($('askas'), `Asking as ${name} (${cap(level)})`);
-  // the viewer's place in the household list decides their scarf; an unknown profile gets the first
-  const i = viewers.findIndex(v => v.name === name);
+  // the viewer's place in creation order decides their scarf for life; an unknown profile gets the first
+  const i = scarfIndex(viewers, name);
   document.body.dataset.me = name;
   document.body.style.setProperty('--scarf', scarfFor(i).color);
   $('whoscarf').replaceChildren(scarfSvg(i, 26));
@@ -61,7 +62,8 @@ function setMe(name: string, level: string) {
 
 function renderProfiles(list: ViewerInfo[]) {
   viewers = list;
-  $('profiles').replaceChildren(...list.map((v, i) => {
+  $('profiles').replaceChildren(...list.map(v => {
+    const i = scarfIndex(list, v.name);
     const b = document.createElement('button');
     b.className = 'btn profile';
         b.setAttribute('aria-pressed', String(v.name === me));
@@ -77,7 +79,7 @@ function renderProfiles(list: ViewerInfo[]) {
   show('pick');
 }
 
-type Reply = { viewers?: ViewerInfo[]; message?: string };
+type Reply = { viewers?: ViewerInfo[]; sessionId?: string; message?: string };
 
 async function join() {
   say('');
@@ -87,6 +89,7 @@ async function join() {
   const r = await busy($<HTMLButtonElement>('join'), 'Joining...', () => call<Reply>('GET', `/households/${encodeURIComponent(typed)}`));
   if (r.status !== 200 || !r.data.viewers) { say(r.data.message ?? 'Something went wrong. Check the code and try again.', 'error'); return; }
   code = typed;
+  sessionId = r.data.sessionId ?? '';
   const u = new URL(location.href); u.searchParams.set('code', typed); history.replaceState(null, '', u);
   say(r.data.viewers.length ? 'You are in. Pick yourself, or add yourself below.' : 'You are in. Add yourself below.', 'ok');
   renderProfiles(r.data.viewers);
@@ -118,6 +121,13 @@ function showAnswer(d: { ok?: boolean; answer?: string; message?: string }, aske
   } else say(d.message ?? 'Something went wrong. Try asking again.', 'error');
 }
 
+/** The TV may have started a session since this page loaded: ask again, and keep the old id if the call fails. */
+async function currentSessionId(): Promise<string> {
+  const r = await call<Reply>('GET', `/households/${encodeURIComponent(code)}`);
+  if (r.status === 200) sessionId = r.data.sessionId ?? '';
+  return sessionId;
+}
+
 async function send() {
   const q = $<HTMLInputElement>('question').value;
   if (!q.trim()) { say('Type a question first, or tap the microphone.', 'error'); return; }
@@ -126,6 +136,8 @@ async function send() {
   const body: Record<string, string> = { question: q };
   if (me) body.viewerName = me;
   try {
+    const sid = await currentSessionId();
+    if (sid) body.sessionId = sid;
     const r = await busy($<HTMLButtonElement>('send'), 'Sending...', () => call<{ ok?: boolean; answer?: string; message?: string }>('POST', `/households/${encodeURIComponent(code)}/questions`, body));
     showAnswer(r.data, q.trim());
   } catch { say('Could not reach Courtside - check your connection and try again.', 'error'); }
@@ -168,6 +180,8 @@ async function sendAudio(blob: Blob) {
     const wav = await toWav(blob);
     const body: Record<string, string> = { wavBase64: toBase64(wav) };
     if (me) body.viewerName = me;
+    const sid = await currentSessionId();
+    if (sid) body.sessionId = sid;
     const r = await call<{ ok?: boolean; answer?: string; message?: string }>('POST', `/households/${encodeURIComponent(code)}/questions/audio`, body);
     showAnswer(r.data, 'your question by voice');
   } catch { say("I didn't catch that - try again or type it.", 'error'); }

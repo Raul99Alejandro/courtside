@@ -4,9 +4,9 @@ import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import QRCode from 'react-native-qrcode-svg';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { DefaultFocus, SpatialNavigationFocusableView, SpatialNavigationNode, SpatialNavigationRoot } from 'react-tv-space-navigation';
-import type { Viewer } from '@courtside/core';
+import { scarfIndex, type Viewer } from '@courtside/core';
 import { DEMO_CODE, HOUSEHOLD, LEVEL_LABEL, PHONE_URL } from '../data/demo-household';
-import { selection, togglePick } from '../data/picking';
+import { defaultPick, selection, togglePick } from '../data/picking';
 import { phoneUrl, useLive } from '../live';
 import { isDemo } from './screen';
 import { theme } from '../theme/courtside';
@@ -75,7 +75,7 @@ export default function Watching() {
     setPresent(p => {
       const names = viewers.map(v => v.name);
       const kept = p.filter(n => names.includes(n));
-      return touched ? kept : names.slice(0, 3);
+      return touched ? kept : defaultPick(names);
     });
   }, [viewers, touched]);
 
@@ -127,7 +127,7 @@ export default function Watching() {
                           <View style={styles.cards}>
                             {row.map((v, k) => {
                               const i = r * MAX_PER_ROW + k;
-                              const card = <ProfileCard viewer={v} index={i} compact={compact} picked={present.includes(v.name)} onSelect={() => toggle(v.name)} />;
+                              const card = <ProfileCard viewer={v} index={scarfIndex(viewers, v.name)} compact={compact} picked={present.includes(v.name)} onSelect={() => toggle(v.name)} />;
                               return i === 0 ? <DefaultFocus key={v.name}>{card}</DefaultFocus> : <View key={v.name}>{card}</View>;
                             })}
                           </View>

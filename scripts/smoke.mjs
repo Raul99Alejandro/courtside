@@ -66,9 +66,13 @@ check(again.status === 200 && again.data.viewers[0].seenBasic.offside === 1, 'sh
 const second = await call('POST', `/households/${code}/sessions/${sid}/shown`, shownBody('m2'));
 check(second.data.viewers[0].understood.includes('offside'), 'second moment makes offside understood (R-04)');
 const gi = await call('POST', `/households/${code}/viewers/leo/got-it`, { concepts: ['goal', 'shot', 'save', 'assist'] });
-check(gi.status === 200 && gi.data.promotions[0] === 'Leo moved up to Fan' && gi.data.viewers[0].level === 'fan', 'got-it to 5 understood promotes to Fan', JSON.stringify(gi.data.promotions));
+check(gi.status === 200 && gi.data.promotions[0]?.name === 'Leo' && gi.data.promotions[0]?.message === 'Leo moved up to Fan' && gi.data.viewers[0].level === 'fan', 'got-it to 5 understood promotes to Fan', JSON.stringify(gi.data.promotions));
 const un = await call('POST', `/households/${code}/viewers/Leo/undo-promotion`);
 check(un.status === 200 && un.data.viewers[0].level === 'beginner' && un.data.viewers[0].autoPromotionDisabled === true, 'undo-promotion returns Leo to beginner for good');
+const hh = await call('GET', `/households/${code}`);
+check(hh.status === 200 && hh.data.sessionId === sid, 'GET household returns the latest sessionId (R-04-c)', hh.data.sessionId);
+check(hh.data.viewers[0].order === 1, 'viewers carry their creation order', String(hh.data.viewers[0].order));
+check(Array.isArray(hh.data.recentAnswers) && hh.data.recentAnswers.some(a => a.label === 'Leo' && a.question === 'What is offside?' && !!a.id && !!a.at), 'GET household returns the recent answers', String(hh.data.recentAnswers?.length));
 const four = await call('POST', `/households/${code}/sessions`, { present: ['Leo', 'A', 'B', 'C'] });
 check(four.status === 400, 'unknown/too many viewers in a session are refused', four.data.message);
 const nov = await call('POST', `/households/${code}/viewers/Nobody/got-it`, { concepts: ['goal'] });
