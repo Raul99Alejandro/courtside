@@ -59,12 +59,12 @@ for (const modelId of MODELS) {
   for (const m of moments) {
     const t0 = Date.now();
     try {
-      const r = await client.send(new ConverseCommand({ modelId, system, messages: [{ role: 'user', content: [{ text: JSON.stringify(m) }] }], inferenceConfig: { maxTokens: 400 } }));
+      const r = await client.send(new ConverseCommand({ modelId, system, messages: [{ role: 'user', content: [{ text: JSON.stringify(m) }] }], inferenceConfig: { maxTokens: process.env.REASONING ? 4000 : 400 }, ...(process.env.REASONING && { additionalModelRequestFields: { reasoningConfig: { type: 'enabled', maxReasoningEffort: process.env.REASONING } } }) }));
       lat.push(Date.now() - t0); inTok += r.usage.inputTokens; outTok += r.usage.outputTokens;
       results.push({ moment: m, text: r.output.message.content.map(c => c.text ?? '').join('').trim() });
     } catch (err) { failed = `${err.name}: ${err.message.slice(0, 120)}`; break; }
   }
-  writeFileSync(new URL(`./out/v2-${modelId.replace(/[^a-z0-9.-]/gi, '_')}.json`, import.meta.url), JSON.stringify(results, null, 2));
+  writeFileSync(new URL(`./out/v2${process.env.REASONING ? '-r-' + process.env.REASONING : ''}-${modelId.replace(/[^a-z0-9.-]/gi, '_')}.json`, import.meta.url), JSON.stringify(results, null, 2));
   lat.sort((a, b) => a - b);
   console.log(modelId.padEnd(46), failed ? `FAILED ${failed}` : `p50=${lat[Math.floor(lat.length / 2)]}ms max=${lat.at(-1)}ms tokens in/out=${inTok}/${outTok}`);
 }
