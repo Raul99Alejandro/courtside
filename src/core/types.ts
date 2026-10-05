@@ -33,6 +33,17 @@ export interface MatchEvent {
   location?: [number, number];
 }
 
+/** Facts computed from the event and its 360 frame (see src/data/tactics.ts). Distances are in yards. */
+export interface Tactics {
+  minutesLeft: number;
+  gameState: 'protecting a lead' | 'chasing the game' | 'level';
+  defendersBetween?: number;
+  attackersInBox?: number;
+  distanceToGoal?: number;
+  pressure?: number;
+  keeperOffLine?: boolean;
+}
+
 export interface Moment {
   id: string;                   // event id
   minute: number;
@@ -49,5 +60,6 @@ export interface Moment {
   setsUp?: { player?: string; minute: number; effect: string };
   zone?: string;
   ball?: [number, number];
+  tactics?: Tactics;
   players?: { x: number; y: number; teammate: boolean; actor: boolean; keeper: boolean }[];
 }

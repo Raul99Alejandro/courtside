@@ -1,4 +1,5 @@
 import { conceptsFor } from '../core/index.js';
+import { computeTactics } from './tactics.js';
 import type { MatchEvent, Moment } from '../core/index.js';
 
 /** Loose shape of a StatsBomb event (only the fields we read). */
@@ -103,6 +104,7 @@ export function curate(events: RawEvent[], frames: RawFrame[]): Moment[] {
       ...(goalByPass.get(e.id) && concepts.includes('assist') && { setsUp: goalByPass.get(e.id) }),
       ...(e.location && { zone: zone(e.location), ball: e.location }),
       ...(players && { players }),
+      tactics: computeTactics({ period: e.period, minute: e.minute, team: e.team.name, scoreBefore: before, ...(e.location && { ball: e.location }), ...(players && { players }) }),
     });
   }
   return out;
