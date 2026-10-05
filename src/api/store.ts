@@ -9,7 +9,7 @@ export const CONNECTION_TTL_S = 24 * 3600;
 export const SESSION_TTL_S = 24 * 3600;
 
 /** A viewing session: who is in the room and the moment the TV shows now (so a question can reset that concept's view count, R-04-c). */
-export interface Session { present: string[]; momentId?: string; concepts?: string[] }
+export interface Session { present: string[]; momentId?: string; concepts?: string[]; /** Highest moment sequence number the TV has sent; an older one never replaces the current moment. */ seq?: number }
 
 /** What the handlers need from storage; tests pass a fake. */
 export interface Store {
@@ -25,6 +25,8 @@ export interface Store {
   putSession(code: string, sessionId: string, s: Session): Promise<void>;
   /** True the first time (session, moment, viewer) is claimed, false on every repeat: the idempotency key for "shown". */
   claimShown(code: string, sessionId: string, momentId: string, viewer: string): Promise<boolean>;
+  /** Gives a claim back when the write it guarded failed, so a retry counts the view. */
+  releaseShown(code: string, sessionId: string, momentId: string, viewer: string): Promise<void>;
   addConnection(code: string, connectionId: string): Promise<void>;
   removeConnection(connectionId: string): Promise<void>;
   connections(code: string): Promise<string[]>;
@@ -113,6 +115,9 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
         if ((err as { name?: string }).name === 'ConditionalCheckFailedException') return false;
         throw err;
       }
+    },
+    async releaseShown(code, sessionId, momentId, viewer) {
+      await doc.send(new DeleteCommand({ TableName: table, Key: { pk: hh(code), sk: `SHOWN#${sessionId}#${momentId}#${viewer.toLowerCase()}` } }));
     },
     async addConnection(code, connectionId) {
       const ttl = now() + CONNECTION_TTL_S;

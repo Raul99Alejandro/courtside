@@ -39,6 +39,7 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
     },
     async getSession(code, id) { return sessions.get(`${code}#${id}`); },
     async putSession(code, id, session) { sessions.set(`${code}#${id}`, session); },
+    async releaseShown(code, sid, mid, viewer) { claims.delete(`${code}#${sid}#${mid}#${viewer}`); },
     async claimShown(code, sid, mid, viewer) { const k = `${code}#${sid}#${mid}#${viewer}`; if (claims.has(k)) return false; claims.add(k); return true; },
     async addConnection(code, id) { conns.set(code, [...(conns.get(code) ?? []), id]); },
     async removeConnection(id) { removed.push(id); },
@@ -250,12 +251,6 @@ describe('http handler', () => {
       expect(leo().understood).toEqual(['offside']); // second view makes it understood (R-04)
     });
 
-    it('shown ignores the layer the TV claims (server recomputes)', async () => {
-      const sessionId = await startSession(['Leo']);
-      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
-      expect(leo().seenBasic).toEqual({ offside: 1 });
-    });
-
     it('shown pushes viewers and promotions to every TV', async () => {
       f.households.set('ABC234', [{ ...newViewer('Leo', 'beginner'), understood: ['goal', 'shot', 'save', 'assist'] }]);
       const sessionId = await startSession(['Leo']);
@@ -322,6 +317,33 @@ describe('http handler', () => {
       expect(busy.statusCode).toBe(409);
       expect(json(busy).message).toBe('Courtside was busy saving - try again');
       expect(leo().understood).toEqual(['goal']);
+    });
+
+    it('a failed shown write releases the claim so the retry counts the view once', async () => {
+      const sessionId = await startSession(['Leo']);
+      const body = { momentId: 'm1', concepts: ['offside'] };
+      f.failPuts.n = 2;
+      expect((await post(`/sessions/${sessionId}/shown`, body)).statusCode).toBe(409);
+      expect(leo().seenBasic).toEqual({});
+      expect((await post(`/sessions/${sessionId}/shown`, body)).statusCode).toBe(200);
+      await post(`/sessions/${sessionId}/shown`, body);
+      expect(leo().seenBasic).toEqual({ offside: 1 });
+    });
+
+    it('an older moment (lower seq) does not replace the session current moment', async () => {
+      const sessionId = await startSession(['Leo']);
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm2', concepts: ['goal'], seq: 2 });
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], seq: 1 });
+      expect(f.sessions.get(`ABC234#${sessionId}`)).toMatchObject({ momentId: 'm2', concepts: ['goal'], seq: 2 });
+    });
+
+    it('a question from a viewer not in the session does not reset counts', async () => {
+      await post('/viewers', { name: 'Mia', level: 'beginner' });
+      const sessionId = await startSession(['Leo']);
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'] });
+      f.households.set('ABC234', f.households.get('ABC234')!.map(v => v.name === 'Mia' ? { ...v, seenBasic: { offside: 1 } } : v));
+      await post('/questions', { viewerName: 'Mia', question: 'What is offside?', sessionId });
+      expect(f.households.get('ABC234')!.find(v => v.name === 'Mia')!.seenBasic).toEqual({ offside: 1 });
     });
 
     it('got-it marks understood, promotes at 5, and undo-promotion reverses it for good', async () => {

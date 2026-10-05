@@ -152,11 +152,19 @@ export function makeHttpHandler(deps: Deps) {
         const viewer = viewers.find(v => v.name === name);
         if (!viewer || layerFor(viewer, concepts) !== 'basic') continue; // removed mid-session, or not shown a basic row
         if (!await store.claimShown(code, sessionId, momentId, name)) continue; // a second TV or a stale tab: already counted
-        const r = await mutate(code, name, v => recordBasicShown(v, concepts));
-        if (r?.promotion) promotions.push(r.promotion);
+        try {
+          // Re-check the layer on every attempt: a conflicting write may have changed what this viewer understands.
+          const r = await mutate(code, name, v => layerFor(v, concepts) === 'basic' ? recordBasicShown(v, concepts) : { viewer: v });
+          if (r && 'promotion' in r && r.promotion) promotions.push(r.promotion);
+        } catch (e) {
+          await store.releaseShown(code, sessionId, momentId, name).catch(() => undefined); // so a retry still counts the view
+          throw e;
+        }
       }
     } catch (e) { if (e instanceof ConflictError) return busy(); throw e; }
-    await store.putSession(code, sessionId, { ...session, momentId, concepts });
+    const seq = typeof raw.seq === 'number' && Number.isFinite(raw.seq) ? raw.seq : undefined;
+    const stale = seq !== undefined && session.seq !== undefined && seq <= session.seq; // an older moment must not replace the current one
+    if (!stale) await store.putSession(code, sessionId, { ...session, momentId, concepts, ...(seq !== undefined ? { seq } : {}) });
     return viewersReply(code, await freshViewers(code, viewers), promotions);
   }
 
@@ -189,7 +197,7 @@ export function makeHttpHandler(deps: Deps) {
     if (typeof raw.sessionId !== 'string') return;
     const asker = findViewer(viewers, raw.viewerName);
     const session = await store.getSession(code, raw.sessionId);
-    if (!asker || !session?.concepts) return;
+    if (!asker || !session?.concepts || !session.present.includes(asker.name)) return;
     const named = session.concepts.filter(c => new RegExp(`(?<![a-z0-9])${c}(?:e?s)?(?![a-z0-9])`, 'i').test(text));
     if (!named.length) return;
     await mutate(code, asker.name, v => ({ viewer: named.reduce((x, c) => recordAsked(x, c as Concept), v) }));
