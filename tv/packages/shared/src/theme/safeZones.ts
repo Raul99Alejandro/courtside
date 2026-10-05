@@ -5,7 +5,7 @@
 export const safeZones = {
   // Title-safe margins (5% of screen dimension)
   titleSafe: {
-    horizontal: 90,  // ~5% of 1920px
+    horizontal: 96,  // 5% of 1920px
     vertical: 54,    // ~5% of 1080px
   },
   

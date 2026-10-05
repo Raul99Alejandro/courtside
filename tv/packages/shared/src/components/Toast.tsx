@@ -53,8 +53,8 @@ export default function Toast({ text, theme, onUndo }: Props) {
 
 /** Where the toast sits so it covers the timeline, the least important part, in each layout. */
 const ANCHOR = {
-  board: { left: px(90), bottom: px(40) },
-  whiteboard: { left: px(90), top: px(585) },
+  board: { left: px(96), bottom: px(40) },
+  whiteboard: { left: px(96), top: px(585) },
   band: { left: px(640), top: px(40) },
 } as const;
 

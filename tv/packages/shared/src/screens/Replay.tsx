@@ -264,7 +264,7 @@ function WhiteboardLayout({ theme, moment, mine, theirs, timeline, buttons, attr
         {timeline(px(1260))}
         {buttons}
       </View>
-      <View style={{ marginTop: px(34) }}>{cards}</View>
+      <View style={{ marginTop: px(18) }}>{cards}</View>
       {why && <View style={{ marginTop: px(14) }}>{why}</View>}
     </View>
   );

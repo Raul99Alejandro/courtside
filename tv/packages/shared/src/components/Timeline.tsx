@@ -32,7 +32,9 @@ export default function Timeline({ moments, selectedId, initialId, onSelect, the
             const selected = m.id === selectedId;
             const goal = m.outcome === 'Goal';
             const tick = (
-              <SpatialNavigationFocusableView onFocus={() => onSelect(m.id)} onSelect={() => onSelect(m.id)}>
+              <SpatialNavigationFocusableView
+                viewProps={{ accessibilityLabel: `Minute ${m.minute}${goal ? ", goal" : ""}` }}
+                onFocus={() => onSelect(m.id)} onSelect={() => onSelect(m.id)}>
                 {({ isFocused }) => {
                   const hot = selected || isFocused;
                   let body;

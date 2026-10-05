@@ -164,7 +164,7 @@ function ProfileCard({
               fontFamily: theme.font.bodyBold,
               fontSize: px(30),
               marginTop: px(10),
-              color: picked ? (l === 'whiteboard' ? c.accent : c.accent) : 'transparent',
+              color: picked ? (l === 'whiteboard' ? c.text : c.accent) : 'transparent',
             }}
           >
             Watching
