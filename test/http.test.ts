@@ -5,10 +5,11 @@ import type { Store } from '../src/api/store.js';
 
 const FALLBACK = "I couldn't answer that right now - try again in a moment.";
 
-function fakeStore(rateStart = 0) {
+function fakeStore(rateStart = 0, globalStart = 0) {
   const households = new Map<string, Viewer[]>();
   const conns = new Map<string, string[]>();
   let rate = rateStart;
+  let globalRate = globalStart;
   const removed: string[] = [];
   const store: Store = {
     async createHousehold() { households.set('ABC234', []); return { householdId: 'hh-1', code: 'ABC234' }; },
@@ -17,7 +18,7 @@ function fakeStore(rateStart = 0) {
     async addConnection(code, id) { conns.set(code, [...(conns.get(code) ?? []), id]); },
     async removeConnection(id) { removed.push(id); },
     async connections(code) { return conns.get(code) ?? []; },
-    async countQuestion() { return ++rate; },
+    async countQuestion() { return { household: ++rate, global: ++globalRate }; },
   };
   return { store, households, conns, removed };
 }
@@ -138,6 +139,23 @@ describe('http handler', () => {
     const r = await q();
     expect(r.statusCode).toBe(429);
     expect(json(r).message).toMatch(/too many questions/i);
+  });
+
+  it('refuses with a friendly 429 once the service-wide hourly cap of 300 is reached', async () => {
+    f = fakeStore(0, 299);
+    f.households.set('ABC234', [newViewer('Leo', 'beginner')]);
+    const q = () => handler()(ev('POST', '/households/ABC234/questions', { viewerName: 'Leo', question: 'Why?' }));
+    expect((await q()).statusCode).toBe(200);
+    const r = await q();
+    expect(r.statusCode).toBe(429);
+    expect(json(r).message).toMatch(/busy/i);
+    expect(asked).toHaveLength(1);
+  });
+
+  it('a malformed percent-encoding in the code is 404 Unknown code', async () => {
+    const r = await handler()(ev('GET', '/households/%E0%A4%A'));
+    expect(r.statusCode).toBe(404);
+    expect(json(r)).toEqual({ message: 'Unknown code' });
   });
 
   it('unknown route is 404', async () => {

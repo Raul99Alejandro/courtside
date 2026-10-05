@@ -20,6 +20,7 @@ export interface Deps {
 export const MAX_BODY_BYTES = 2048;
 export const MAX_QUESTION_CHARS = 300;
 export const MAX_QUESTIONS_PER_HOUR = 30;
+export const MAX_GLOBAL_QUESTIONS_PER_HOUR = 300; // cost cap for the whole service
 const LEVELS: Level[] = ['beginner', 'fan', 'expert'];
 
 const reply = (statusCode: number, data: unknown): HttpResult => ({ statusCode, headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
@@ -37,7 +38,9 @@ export function makeHttpHandler(deps: Deps) {
     const viewer = viewers.find(v => v.name.toLowerCase() === name);
     const route = routeQuestion({ viewer });
     if (!route.ok) return fail(400, route.phoneMessage);
-    if (await store.countQuestion(code) > MAX_QUESTIONS_PER_HOUR) return fail(429, 'Too many questions this hour - try again later');
+    const counts = await store.countQuestion(code);
+    if (counts.household > MAX_QUESTIONS_PER_HOUR) return fail(429, 'Too many questions this hour - try again later');
+    if (counts.global > MAX_GLOBAL_QUESTIONS_PER_HOUR) return fail(429, 'Courtside is busy right now - try again in a little while');
 
     let answer: string;
     try { answer = await deps.answer({ question: text, layer: route.layer, viewerName: route.label }); }
@@ -56,7 +59,9 @@ export function makeHttpHandler(deps: Deps) {
 
   return async (event: HttpEvent): Promise<HttpResult> => {
     const method = event.requestContext.http.method;
-    const parts = event.rawPath.split('/').filter(Boolean).map(decodeURIComponent);
+    let parts: string[];
+    try { parts = event.rawPath.split('/').filter(Boolean).map(decodeURIComponent); }
+    catch { return fail(404, 'Unknown code'); }
     if (parts[0] !== 'households') return fail(404, 'Not found');
 
     if (parts.length === 1) {

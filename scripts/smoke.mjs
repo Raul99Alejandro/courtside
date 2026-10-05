@@ -29,16 +29,17 @@ const code = created.data.code;
 const added = await call('POST', `/households/${code}/viewers`, { name: 'Leo', level: 'beginner' });
 check(added.status === 200 && added.data.viewers?.[0]?.name === 'Leo', 'add viewer Leo (beginner)');
 
+let phoneCheck;
 const pushed = new Promise((resolve, reject) => {
   const socket = new WebSocket(`${ws}?code=${code}&role=tv`);
-  const timer = setTimeout(() => { socket.close(); reject(new Error('no answer pushed within 10 s')); }, 10_000 + 5_000);
+  const timer = setTimeout(() => { socket.close(); reject(new Error('no answer pushed within 10 s')); }, 10_000);
   socket.onmessage = e => { clearTimeout(timer); socket.close(); resolve(JSON.parse(String(e.data))); };
   socket.onerror = () => { clearTimeout(timer); reject(new Error('websocket error')); };
-  socket.onopen = async () => {
+  socket.onopen = () => {
     // Give $connect a moment to store the connection, then ask as Leo.
-    await new Promise(r => setTimeout(r, 500));
-    const asked = await call('POST', `/households/${code}/questions`, { viewerName: 'Leo', question: 'What is offside?' });
-    check(asked.status === 200 && asked.data.ok === true && !!asked.data.answer, 'phone gets the answer', asked.data.answer ?? asked.data.message);
+    phoneCheck = new Promise(r => setTimeout(r, 500))
+      .then(() => call('POST', `/households/${code}/questions`, { viewerName: 'Leo', question: 'What is offside?' }))
+      .then(asked => check(asked.status === 200 && asked.data.ok === true && !!asked.data.answer, 'phone gets the answer', asked.data.answer ?? asked.data.message));
   };
 });
 try {
@@ -47,9 +48,12 @@ try {
 } catch (err) {
   check(false, 'TV receives the pushed answer', err.message);
 }
+await phoneCheck;
 
 const anon = await call('POST', `/households/${code}/questions`, { question: 'What is offside?' });
 check(anon.status === 400 && anon.data.message === 'Pick who you are first', 'question without a viewer is refused', anon.data.message);
+const stranger = await call('POST', `/households/${code}/questions`, { viewerName: 'Nobody', question: 'What is offside?' });
+check(stranger.status === 400 && stranger.data.message === 'Pick who you are first', 'question from a name not in the household is refused', stranger.data.message);
 
 console.log(failed ? '\nSMOKE FAILED' : '\nSMOKE OK');
 process.exit(failed ? 1 : 0);

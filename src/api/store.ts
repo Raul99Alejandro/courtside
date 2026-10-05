@@ -16,8 +16,8 @@ export interface Store {
   addConnection(code: string, connectionId: string): Promise<void>;
   removeConnection(connectionId: string): Promise<void>;
   connections(code: string): Promise<string[]>;
-  /** Counts one question in the current hour and returns the new count (rate limit). */
-  countQuestion(code: string): Promise<number>;
+  /** Counts one question in the current hour for the household and for the whole service; returns both new counts (rate limits). */
+  countQuestion(code: string): Promise<{ household: number; global: number }>;
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -74,12 +74,17 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
     },
     async countQuestion(code) {
       const hour = Math.floor(now() / 3600);
-      const r = await doc.send(new UpdateCommand({
-        TableName: table, Key: { pk: hh(code), sk: `RATE#${hour}` },
-        UpdateExpression: 'ADD #n :one SET #ttl = :ttl', ExpressionAttributeNames: { '#n': 'n', '#ttl': 'ttl' },
-        ExpressionAttributeValues: { ':one': 1, ':ttl': (hour + 2) * 3600 }, ReturnValues: 'UPDATED_NEW',
-      }));
-      return Number(r.Attributes?.n ?? 1);
+      const bump = async (pk: string, sk: string) => {
+        const r = await doc.send(new UpdateCommand({
+          TableName: table, Key: { pk, sk },
+          UpdateExpression: 'ADD #n :one SET #ttl = :ttl', ExpressionAttributeNames: { '#n': 'n', '#ttl': 'ttl' },
+          ExpressionAttributeValues: { ':one': 1, ':ttl': (hour + 2) * 3600 }, ReturnValues: 'UPDATED_NEW',
+        }));
+        return Number(r.Attributes?.n ?? 1);
+      };
+      const stamp = new Date(hour * 3600 * 1000).toISOString().slice(0, 13); // yyyy-mm-ddThh
+      const [household, global] = await Promise.all([bump(hh(code), `RATE#${hour}`), bump(`GLOBAL#${stamp}`, 'COUNT')]);
+      return { household, global };
     },
   };
 }
