@@ -1,0 +1,40 @@
+{
+  "name": "courtside-tv",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "packageManager": "yarn@4.5.0",
+  "resolutions": {
+    "js-yaml": "^3.15.1",
+    "min-document": "^2.19.1",
+    "logkitty": "^0.7.1",
+    "node-fetch": "^2.6.7",
+    "ws": "^8.21.0"
+  },
+  "scripts": {
+    "dev": "yarn workspace @courtside/expo start",
+    "dev:android": "yarn workspace @courtside/expo android",
+    "dev:ios": "yarn workspace @courtside/expo ios",
+    "dev:web": "yarn workspace @courtside/expo web",
+    "dev:vega": "yarn workspace @courtside/vega start",
+    "build:all": "yarn workspaces foreach -A -pt run build",
+    "build:vega": "yarn workspace @courtside/vega run build",
+    "build:vega:debug": "yarn workspace @courtside/vega run build:debug",
+    "test:all": "yarn workspaces foreach -A -pt run test",
+    "lint:all": "yarn workspaces foreach -A -pt run lint",
+    "typecheck": "yarn workspaces foreach -A -pt run typecheck",
+    "clean:all": "yarn workspaces foreach -A run clean && rm -rf node_modules",
+    "bootstrap": "yarn install && yarn build:all",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "web": "yarn workspace @courtside/expo web",
+    "shot": "node scripts/shot.mjs",
+    "test": "yarn workspace @courtside/shared test"
+  },
+  "devDependencies": {
+    "playwright": "^1.50.0",
+    "prettier": "^3.3.3"
+  }
+}
