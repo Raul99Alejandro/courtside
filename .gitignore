@@ -1,0 +1,8 @@
+node_modules/
+sources/
+.env
+.env.*
+*.log
+.DS_Store
+spikes/**/data/
+spikes/**/out/
