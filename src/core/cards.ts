@@ -29,6 +29,7 @@ export function checkCard(text: string, layer: Layer, m: Partial<Pick<Moment, 'e
   if (words > MAX_WORDS[layer]) problems.push(`too long: ${words} > ${MAX_WORDS[layer]}`);
   if (COORDS.test(t) || FORBIDDEN_MARKERS.some(x => t.includes(x))) problems.push('mentions coordinates');
   if (t.includes('—')) problems.push('contains an em dash; use a comma or a full stop');
+  if (/\(\d+\s*words?\)/i.test(t)) problems.push('contains a word count; do not append word counts');
   for (const b of BANNED) if (b.test(t)) problems.push(`banned term ${b}`);
   const score = scoreInEffect(m.effect);
   if (score && layer !== 'basic') {

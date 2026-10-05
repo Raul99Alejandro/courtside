@@ -72,7 +72,11 @@ describe('Courtside stack', () => {
   });
 
   it('runs Node 22 Lambdas with the brief sizes', () => {
-    t.hasResourceProperties('AWS::Lambda::Function', { Runtime: 'nodejs22.x', MemorySize: 256, Timeout: 15, Handler: 'index.handler' });
+    t.hasResourceProperties('AWS::Lambda::Function', { Runtime: 'nodejs22.x', MemorySize: 256, Timeout: 25, Handler: 'index.handler' });
+  });
+
+  it('throttles both stages at 10 rps, burst 20', () => {
+    t.hasResourceProperties('AWS::ApiGatewayV2::Stage', { DefaultRouteSettings: { ThrottlingRateLimit: 10, ThrottlingBurstLimit: 20 } });
   });
 
   it('has a USD 20 monthly budget that emails the owner', () => {

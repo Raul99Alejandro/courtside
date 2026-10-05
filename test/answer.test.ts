@@ -12,3 +12,9 @@ it('falls back when every model fails', async () => {
 it('falls back when the answer breaks the card checks', async () => {
   expect(await answerQuestion(input, { converse: async () => ({ text: 'The 2022 FIFA final [1,2]', modelId: 'f' }) })).toBe(FALLBACK_ANSWER);
 });
+it('replaces an em dash instead of discarding the answer, and asks the model not to use one', async () => {
+  let system = '';
+  const out = await answerQuestion(input, { converse: async (_m, s) => { system = s; return { text: 'Offside — the attacker was ahead of the last defender.', modelId: 'f' }; } });
+  expect(out).toBe('Offside, the attacker was ahead of the last defender.');
+  expect(system).toContain('Never use the em dash');
+});

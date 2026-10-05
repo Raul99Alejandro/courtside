@@ -7,4 +7,17 @@ anyone ask a question by voice from their phone.
 
 Status: in development for the Amazon "Build, Ship, Shape" hackathon (Fire TV track).
 
-Data: StatsBomb Open Data (attribution in docs/reality.md until the data pipeline lands).
+## Data
+
+Data: StatsBomb Open Data — https://github.com/statsbomb/open-data
+
+The match data is StatsBomb's; the moment selection, explanations and analysis are ours. This is a non-commercial hackathon project.
+
+## Deploy
+
+```
+npm run web:build
+npm run cdk -- deploy -c ownerEmail=<email> --outputs-file cdk-outputs.json
+node scripts/smoke.mjs
+```
+

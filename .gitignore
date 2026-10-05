@@ -10,3 +10,4 @@ build/
 dist-web/
 cdk.out/
 cdk-outputs.json
+web/public/config.json

@@ -24,6 +24,8 @@ export const MAX_AUDIO_BODY_BYTES = Math.ceil(MAX_WAV_BYTES / 3) * 4 + 1024; // 
 export const MAX_QUESTION_CHARS = 300;
 export const MAX_QUESTIONS_PER_HOUR = 30;
 export const MAX_GLOBAL_QUESTIONS_PER_HOUR = 300; // cost cap for the whole service
+export const MAX_GLOBAL_QUESTIONS_PER_DAY = 600;
+export const MAX_PROFILES_PER_HOUSEHOLD = 10;
 const LEVELS: Level[] = ['beginner', 'fan', 'expert'];
 
 const reply = (statusCode: number, data: unknown): HttpResult => ({ statusCode, headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
@@ -42,9 +44,10 @@ export function makeHttpHandler(deps: Deps) {
     const viewer = viewers.find(v => v.name.toLowerCase() === name);
     const route = routeQuestion({ viewer });
     if (!route.ok) return fail(400, route.phoneMessage);
-    const counts = await store.countQuestion(code);
-    if (counts.household > MAX_QUESTIONS_PER_HOUR) return fail(429, 'Too many questions this hour - try again later');
-    if (counts.global > MAX_GLOBAL_QUESTIONS_PER_HOUR) return fail(429, 'Courtside is busy right now - try again in a little while');
+    // Household first: a capped household must not eat the service-wide budget.
+    if (await store.countHousehold(code) > MAX_QUESTIONS_PER_HOUR) return fail(429, 'Too many questions this hour - try again later');
+    const global = await store.countGlobal();
+    if (global.hour > MAX_GLOBAL_QUESTIONS_PER_HOUR || global.day > MAX_GLOBAL_QUESTIONS_PER_DAY) return fail(429, 'Courtside is busy right now - try again in a little while');
     return route;
   }
 
@@ -116,6 +119,7 @@ export function makeHttpHandler(deps: Deps) {
     if (parts.length === 3 && parts[2] === 'viewers' && method === 'POST') {
       const level = raw.level as Level;
       if (!LEVELS.includes(level)) return fail(400, 'Pick a level');
+      if (viewers.length >= MAX_PROFILES_PER_HOUSEHOLD) return fail(400, `A household can have up to ${MAX_PROFILES_PER_HOUSEHOLD} viewers`);
       const name = typeof raw.name === 'string' ? raw.name.slice(0, 30) : '';
       const r = addViewer(viewers, newViewer(name, level));
       if (!r.ok) return fail(400, r.message);

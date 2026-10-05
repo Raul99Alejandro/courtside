@@ -68,7 +68,7 @@ export class CourtsideStack extends Stack {
     });
     const wsStage = new apigw.WebSocketStage(this, 'WsStage', { webSocketApi: wsApi, stageName: WS_STAGE, autoDeploy: true });
 
-    const httpFn = fn('Http', 'src/api/http.ts', 256, Duration.seconds(15), { WS_ENDPOINT: wsStage.callbackUrl });
+    const httpFn = fn('Http', 'src/api/http.ts', 256, Duration.seconds(25), { WS_ENDPOINT: wsStage.callbackUrl });
     table.grantReadWriteData(httpFn);
     httpFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
@@ -93,8 +93,8 @@ export class CourtsideStack extends Stack {
       corsPreflight: { allowOrigins: ['*'], allowMethods: [apigw.CorsHttpMethod.GET, apigw.CorsHttpMethod.POST], allowHeaders: ['content-type'], maxAge: Duration.hours(1) },
     });
     httpApi.addRoutes({ path: '/{proxy+}', methods: [apigw.HttpMethod.ANY], integration: new integrations.HttpLambdaIntegration('HttpIntegration', httpFn) });
-    // Throttle both APIs (2 rps, burst 5); with the 300 questions/hour service cap this bounds the Bedrock bill.
-    const throttle = { throttlingRateLimit: 2, throttlingBurstLimit: 5 };
+    // Throttle both APIs (10 rps, burst 20); the question caps (300/hour, 600/day for the service) bound the Bedrock bill.
+    const throttle = { throttlingRateLimit: 10, throttlingBurstLimit: 20 };
     (httpApi.defaultStage!.node.defaultChild as apigw.CfnStage).defaultRouteSettings = throttle;
     (wsStage.node.defaultChild as apigw.CfnStage).defaultRouteSettings = throttle;
 
@@ -169,10 +169,10 @@ export class CourtsideStack extends Stack {
       { id: 'AwsSolutions-IAM4', appliesTo: ['Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'], reason: 'Lambda functions (ours and the CDK helper handlers) use the AWS managed AWSLambdaBasicExecutionRole only to write their own CloudWatch logs.' },
       { id: 'AwsSolutions-L1', reason: 'The brief pins our functions to Node.js 22 (supported until 2027); the BucketDeployment handler runtime is chosen by the CDK.' },
       { id: 'AwsSolutions-APIG1', reason: 'API Gateway access logs are off for cost and to avoid storing caller IPs; the Lambda functions log every request, and both stages are throttled.' },
-      { id: 'AwsSolutions-APIG4', reason: 'No user accounts in this demo: the six-character household code gates the household, and the cost is bounded by 30 questions/hour per household, 300/hour for the whole service and a 2 rps stage throttle.' },
+      { id: 'AwsSolutions-APIG4', reason: 'No user accounts in this demo: the six-character household code gates the household, and the cost is bounded by 30 questions/hour per household, 300/hour and 600/day for the whole service and a 10 rps stage throttle.' },
       { id: 'AwsSolutions-S1', reason: 'Server access logging is off for cost; the bucket only holds the public static web build.' },
       { id: 'AwsSolutions-CFR1', reason: 'No geo restriction: the demo is meant for hackathon judges anywhere.' },
-      { id: 'AwsSolutions-CFR2', reason: 'AWS WAF is out of the USD 20 budget; CloudFront only serves static pages, and the APIs are protected by the household code, the global question cap and a 2 rps throttle.' },
+      { id: 'AwsSolutions-CFR2', reason: 'AWS WAF is out of the USD 20 budget; CloudFront only serves static pages, and the APIs are protected by the household code, the global question caps and a 10 rps throttle.' },
       { id: 'AwsSolutions-CFR3', reason: 'CloudFront access logging is off for cost and to avoid storing viewer IPs.' },
       { id: 'AwsSolutions-CFR4', reason: 'The default cloudfront.net certificate is used (no custom domain), so the minimum TLS version cannot be raised.' },
     ]);

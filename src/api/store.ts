@@ -16,8 +16,10 @@ export interface Store {
   addConnection(code: string, connectionId: string): Promise<void>;
   removeConnection(connectionId: string): Promise<void>;
   connections(code: string): Promise<string[]>;
-  /** Counts one question in the current hour for the household and for the whole service; returns both new counts (rate limits). */
-  countQuestion(code: string): Promise<{ household: number; global: number }>;
+  /** Counts one question in the current hour for the household; returns the new count. */
+  countHousehold(code: string): Promise<number>;
+  /** Counts one question for the whole service (this hour and today, UTC); call only after the household passed its cap. */
+  countGlobal(): Promise<{ hour: number; day: number }>;
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -25,6 +27,14 @@ export const newCode = () => Array.from({ length: 6 }, () => CODE_ALPHABET[rando
 
 export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocumentClient.from(new DynamoDBClient({}), { marshallOptions: { removeUndefinedValues: true } })): Store {
   const hh = (code: string) => `HH#${code}`;
+  const bump = async (pk: string, sk: string, ttl: number) => {
+    const r = await doc.send(new UpdateCommand({
+      TableName: table, Key: { pk, sk },
+      UpdateExpression: 'ADD #n :one SET #ttl = :ttl', ExpressionAttributeNames: { '#n': 'n', '#ttl': 'ttl' },
+      ExpressionAttributeValues: { ':one': 1, ':ttl': ttl }, ReturnValues: 'UPDATED_NEW',
+    }));
+    return Number(r.Attributes?.n ?? 1);
+  };
   return {
     async createHousehold() {
       for (let attempt = 0; attempt < 5; attempt++) {
@@ -72,19 +82,17 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
       }));
       return (r.Items ?? []).map(i => i.connectionId as string);
     },
-    async countQuestion(code) {
+    async countHousehold(code) {
+      return bump(hh(code), `RATE#${Math.floor(now() / 3600)}`, (Math.floor(now() / 3600) + 2) * 3600);
+    },
+    async countGlobal() {
       const hour = Math.floor(now() / 3600);
-      const bump = async (pk: string, sk: string) => {
-        const r = await doc.send(new UpdateCommand({
-          TableName: table, Key: { pk, sk },
-          UpdateExpression: 'ADD #n :one SET #ttl = :ttl', ExpressionAttributeNames: { '#n': 'n', '#ttl': 'ttl' },
-          ExpressionAttributeValues: { ':one': 1, ':ttl': (hour + 2) * 3600 }, ReturnValues: 'UPDATED_NEW',
-        }));
-        return Number(r.Attributes?.n ?? 1);
-      };
-      const stamp = new Date(hour * 3600 * 1000).toISOString().slice(0, 13); // yyyy-mm-ddThh
-      const [household, global] = await Promise.all([bump(hh(code), `RATE#${hour}`), bump(`GLOBAL#${stamp}`, 'COUNT')]);
-      return { household, global };
+      const stamp = new Date(hour * 3600 * 1000).toISOString();
+      const [h, day] = await Promise.all([
+        bump(`GLOBAL#${stamp.slice(0, 13)}`, 'COUNT', (hour + 2) * 3600),
+        bump(`GLOBAL_DAY#${stamp.slice(0, 10)}`, 'COUNT', now() + 2 * 24 * 3600),
+      ]);
+      return { hour: h, day };
     },
   };
 }

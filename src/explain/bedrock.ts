@@ -6,11 +6,14 @@ export const LIVE_MODELS = ['us.anthropic.claude-haiku-4-5-20251001-v1:0', 'us.a
 export interface ConverseResult { text: string; modelId: string; inputTokens?: number; outputTokens?: number }
 export type Converse = (modelIds: string[], system: string, user: string, maxTokens: number) => Promise<ConverseResult>;
 
+/** Per-call timeout for the live (Lambda) path; the offline generator passes a longer one. */
+export const LIVE_TIMEOUT_MS = 4000;
+
 let client: BedrockRuntimeClient | undefined;
 
 /** Tries the model ids in order; any failure (throttling, 5xx, access denied) moves on to the next. */
-export const converse: Converse = async (modelIds, system, user, maxTokens) => {
-  client ??= new BedrockRuntimeClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
+export const makeConverse = (timeoutMs: number): Converse => async (modelIds, system, user, maxTokens) => {
+  client ??= new BedrockRuntimeClient({ region: process.env.AWS_REGION ?? 'us-east-1', maxAttempts: 1 });
   let last: unknown;
   for (const modelId of modelIds) {
     try {
@@ -19,7 +22,7 @@ export const converse: Converse = async (modelIds, system, user, maxTokens) => {
         system: [{ text: system }],
         messages: [{ role: 'user', content: [{ text: user }] }],
         inferenceConfig: { maxTokens },
-      }));
+      }), { abortSignal: AbortSignal.timeout(timeoutMs) });
       const text = (r.output?.message?.content ?? []).map(c => c.text ?? '').join('').trim();
       if (!text) throw new Error(`empty response from ${modelId}`);
       return { text, modelId, inputTokens: r.usage?.inputTokens, outputTokens: r.usage?.outputTokens };
@@ -27,3 +30,5 @@ export const converse: Converse = async (modelIds, system, user, maxTokens) => {
   }
   throw last ?? new Error('no model ids given');
 };
+
+export const converse: Converse = makeConverse(LIVE_TIMEOUT_MS);

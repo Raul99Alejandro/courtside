@@ -49,8 +49,10 @@ async function send() {
   text(msg, 'Thinking...');
   const body: Record<string, string> = { question: $<HTMLInputElement>('question').value };
   if (me) body.viewerName = me;
-  const r = await call<{ ok?: boolean; answer?: string; message?: string }>('POST', `/households/${encodeURIComponent(code)}/questions`, body);
-  showAnswer(r.data);
+  try {
+    const r = await call<{ ok?: boolean; answer?: string; message?: string }>('POST', `/households/${encodeURIComponent(code)}/questions`, body);
+    showAnswer(r.data);
+  } catch { text(msg, 'Could not reach Courtside - check your connection and try again.'); }
 }
 
 const MAX_RECORD_MS = 8000;
@@ -96,11 +98,13 @@ async function sendAudio(blob: Blob) {
 
 let recorder: MediaRecorder | undefined;
 let held = false;
+let starting = false; // a recorder is being set up: a second press must not start another
 let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
 async function startTalk() {
-  if (held) return;
+  if (held || starting) return;
   held = true;
+  starting = true;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     if (!held) { stream.getTracks().forEach(t => t.stop()); return; } // let go before the mic was ready
@@ -121,6 +125,7 @@ async function startTalk() {
     $('talk').textContent = 'Listening - let go to send';
     stopTimer = setTimeout(stopTalk, MAX_RECORD_MS);
   } catch { held = false; text(msg, 'Microphone not available - type your question instead.'); }
+  finally { starting = false; }
 }
 
 function stopTalk() {

@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { checkCard, LAYER_ORDER, type Layer, type Moment } from '../core/index.js';
-import { converse as realConverse, PRE_MODELS, type Converse } from './bedrock.js';
+import { makeConverse, PRE_MODELS, type Converse } from './bedrock.js';
+
+const realConverse = makeConverse(30_000); // offline: long calls are fine
 import { cardPrompt, parseCard } from './prompt.js';
 import { judgeBasic, judgeFacts, type Verdict } from './judge.js';
 
@@ -70,10 +72,13 @@ async function main() {
     // Never shrink the file: moments that failed this time keep their previous card; cards of moments no longer in the data are dropped.
     const previous = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as Record<string, Card> : {};
     const ids = new Set(data.moments.map(m => m.id));
-    const merged = { ...Object.fromEntries(Object.entries(previous).filter(([k]) => ids.has(k))), ...ordered };
+    const moments = new Map(data.moments.map(m => [m.id, m]));
+    // Old cards that fail today's checks (for example a trailing word count) are dropped, not kept.
+    const stillGood = Object.entries(previous).filter(([k, c]) => ids.has(k) && LAYER_ORDER.every(l => c[l] && checkCard(c[l], l, moments.get(k)!).length === 0));
+    const merged = { ...Object.fromEntries(stillGood), ...ordered };
     mkdirSync('cards', { recursive: true });
     writeFileSync(file, JSON.stringify(merged, null, 2) + '\n');
-    console.log(`wrote ${Object.keys(merged).length} cards to ${file}`);
+    console.log(`wrote ${Object.keys(merged).length} cards to ${file} (${Object.keys(previous).length - stillGood.length} old cards dropped by the checks)`);
   }
   console.log(`calls=${stats.calls} retries=${stats.retries} judgeErrors=${stats.judgeErrors} tokens in/out=${stats.inputTokens}/${stats.outputTokens} time=${((Date.now() - t0) / 1000).toFixed(0)}s`);
   for (const f of failed) console.log('FAILED', f);
