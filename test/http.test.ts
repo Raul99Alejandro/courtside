@@ -15,6 +15,8 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
   const removed: string[] = [];
   const sessions = new Map<string, Session>();
   const claims = new Set<string>();
+  const versions = new Map<string, number>();
+  const failPuts = { n: 0 };
   const store: Store = {
     async createHousehold() { households.set('ABC234', []); return { householdId: 'hh-1', code: 'ABC234' }; },
     async getViewers(code) { return households.get(code); },
@@ -22,6 +24,18 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
       const list = households.get(code) ?? [];
       const i = list.findIndex(x => x.name.toLowerCase() === v.name.toLowerCase());
       households.set(code, i < 0 ? [...list, v] : list.map((x, j) => j === i ? v : x));
+    },
+    async getViewer(code, name) {
+      const v = households.get(code)?.find(x => x.name.toLowerCase() === name.toLowerCase());
+      return v ? { viewer: v, version: versions.get(`${code}#${v.name.toLowerCase()}`) } : undefined;
+    },
+    async putViewerIf(code, v, version) {
+      const k = `${code}#${v.name.toLowerCase()}`;
+      if (failPuts.n > 0) { failPuts.n--; versions.set(k, (versions.get(k) ?? 0) + 1); return false; } // someone else wrote in between
+      if (versions.get(k) !== version) return false;
+      versions.set(k, (version ?? 0) + 1);
+      households.set(code, (households.get(code) ?? []).map(x => x.name.toLowerCase() === v.name.toLowerCase() ? v : x));
+      return true;
     },
     async getSession(code, id) { return sessions.get(`${code}#${id}`); },
     async putSession(code, id, session) { sessions.set(`${code}#${id}`, session); },
@@ -32,7 +46,7 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
     async countHousehold() { return ++rate; },
     async countGlobal() { return { hour: ++globalRate, day: ++dayRate }; },
   };
-  return { store, households, conns, sessions, removed, counters: () => ({ rate, globalRate, dayRate }) };
+  return { store, households, conns, sessions, failPuts, removed, counters: () => ({ rate, globalRate, dayRate }) };
 }
 
 const ev = (method: string, path: string, body?: unknown): HttpEvent => ({
@@ -236,10 +250,10 @@ describe('http handler', () => {
       expect(leo().understood).toEqual(['offside']); // second view makes it understood (R-04)
     });
 
-    it('shown ignores viewers whose layer was not basic', async () => {
+    it('shown ignores the layer the TV claims (server recomputes)', async () => {
       const sessionId = await startSession(['Leo']);
-      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], layerByViewer: { Leo: 'intermediate' } });
-      expect(leo().seenBasic).toEqual({});
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
+      expect(leo().seenBasic).toEqual({ offside: 1 });
     });
 
     it('shown pushes viewers and promotions to every TV', async () => {
@@ -270,6 +284,44 @@ describe('http handler', () => {
       const r = await post(`/sessions/${sessionId}/shown`, { momentId: 'm', concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
       expect(r.statusCode).toBe(200);
       expect(json(r).viewers.map((v: Viewer) => v.name)).toEqual(['Mia']);
+    });
+
+    it('the server computes layers: a TV claiming basic for an expert counts nothing', async () => {
+      f.households.set('ABC234', [newViewer('Ed', 'expert')]);
+      const sessionId = json(await post('/sessions', { present: ['Ed'] })).sessionId as string;
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], layerByViewer: { Ed: 'basic' } });
+      expect(f.households.get('ABC234')![0]!.seenBasic).toEqual({});
+    });
+
+    it('a beginner who already understood the moment (layer intermediate) gets no basic view', async () => {
+      f.households.set('ABC234', [{ ...newViewer('Leo', 'beginner'), understood: ['offside'] }]);
+      const sessionId = await startSession(['Leo']);
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'] });
+      expect(leo().seenBasic).toEqual({});
+    });
+
+    it('concept matching uses whole words: goalkeeper is not goal, goals and offsides are', async () => {
+      const sessionId = await startSession(['Leo']);
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['goal', 'offside'], layerByViewer: {} });
+      expect(leo().seenBasic).toEqual({ goal: 1, offside: 1 });
+      await post('/questions', { viewerName: 'Leo', question: 'Why did the goalkeeper move?', sessionId });
+      expect(leo().seenBasic).toEqual({ goal: 1, offside: 1 });
+      await post('/questions', { viewerName: 'Leo', question: 'How many goals count?', sessionId });
+      expect(leo().seenBasic).toEqual({ goal: 0, offside: 1 });
+      await post('/questions', { viewerName: 'Leo', question: 'Are offsides rare?', sessionId });
+      expect(leo().seenBasic).toEqual({ goal: 0, offside: 0 });
+    });
+
+    it('a conflicting viewer write is retried once; two conflicts give a friendly 409', async () => {
+      f.failPuts.n = 1;
+      const ok = await post('/viewers/Leo/got-it', { concepts: ['goal'] });
+      expect(ok.statusCode).toBe(200);
+      expect(leo().understood).toEqual(['goal']);
+      f.failPuts.n = 2;
+      const busy = await post('/viewers/Leo/got-it', { concepts: ['shot'] });
+      expect(busy.statusCode).toBe(409);
+      expect(json(busy).message).toBe('Courtside was busy saving - try again');
+      expect(leo().understood).toEqual(['goal']);
     });
 
     it('got-it marks understood, promotes at 5, and undo-promotion reverses it for good', async () => {

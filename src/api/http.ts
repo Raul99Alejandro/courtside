@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { addViewer, markGotIt, newViewer, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Viewer } from '../core/index.js';
+import { addViewer, layerFor, markGotIt, newViewer, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Viewer } from '../core/index.js';
 import { answerQuestion, FALLBACK_ANSWER } from '../explain/answer.js';
 import { postToConnections, type Push } from './push.js';
 import { dynamoStore, type Store } from './store.js';
@@ -109,7 +109,19 @@ export function makeHttpHandler(deps: Deps) {
     return reply(200, { viewers, promotions });
   }
 
-  const replaceViewer = (viewers: Viewers, v: Viewer): Viewers => viewers.map(x => x.name === v.name ? v : x);
+  /** Read-modify-write one viewer with an optimistic version check; retries once on a conflicting write. */
+  async function mutate<T extends { viewer: Viewer }>(code: string, name: string, fn: (v: Viewer) => T): Promise<T | undefined> {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cur = await store.getViewer(code, name);
+      if (!cur) return undefined;
+      const r = fn(cur.viewer);
+      if (await store.putViewerIf(code, r.viewer, cur.version)) return r;
+    }
+    throw new ConflictError();
+  }
+  class ConflictError extends Error {}
+  const busy = () => fail(409, 'Courtside was busy saving - try again');
+  const freshViewers = async (code: string, fallback: Viewers) => (await store.getViewers(code)) ?? fallback;
 
   async function createSession(code: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
     if (!Array.isArray(raw.present) || raw.present.length === 0) return fail(400, 'Pick who is watching');
@@ -126,28 +138,26 @@ export function makeHttpHandler(deps: Deps) {
     return reply(200, { sessionId, viewers: present.map(n => viewers.find(v => v.name === n)!) });
   }
 
+  /** The TV says what it showed; the server decides each viewer's layer from stored state (R-02) and counts basic views (R-04). */
   async function shown(code: string, sessionId: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
     const momentId = typeof raw.momentId === 'string' ? raw.momentId.trim() : '';
     if (!momentId || momentId.length > MAX_MOMENT_ID_CHARS) return fail(400, 'Missing moment');
     const concepts = parseConcepts(raw.concepts);
     if (!concepts || concepts.length === 0) return fail(400, 'Unknown concept');
-    const layers = raw.layerByViewer && typeof raw.layerByViewer === 'object' && !Array.isArray(raw.layerByViewer) ? raw.layerByViewer as Record<string, unknown> : {};
     const session = await store.getSession(code, sessionId);
     if (!session) return fail(404, 'Session expired');
-    let current = viewers; const promotions: string[] = [];
-    for (const name of session.present) {
-      const viewer = viewers.find(v => v.name === name);
-      if (!viewer) continue; // removed mid-session
-      const layer = Object.entries(layers).find(([k]) => k.toLowerCase() === name.toLowerCase())?.[1];
-      if (layer !== 'basic') continue;
-      if (!await store.claimShown(code, sessionId, momentId, name)) continue; // a second TV or a stale tab: already counted
-      const r = recordBasicShown(viewer, concepts);
-      await store.putViewer(code, r.viewer);
-      current = replaceViewer(current, r.viewer);
-      if (r.promotion) promotions.push(r.promotion);
-    }
+    const promotions: string[] = [];
+    try {
+      for (const name of session.present) {
+        const viewer = viewers.find(v => v.name === name);
+        if (!viewer || layerFor(viewer, concepts) !== 'basic') continue; // removed mid-session, or not shown a basic row
+        if (!await store.claimShown(code, sessionId, momentId, name)) continue; // a second TV or a stale tab: already counted
+        const r = await mutate(code, name, v => recordBasicShown(v, concepts));
+        if (r?.promotion) promotions.push(r.promotion);
+      }
+    } catch (e) { if (e instanceof ConflictError) return busy(); throw e; }
     await store.putSession(code, sessionId, { ...session, momentId, concepts });
-    return viewersReply(code, current, promotions);
+    return viewersReply(code, await freshViewers(code, viewers), promotions);
   }
 
   async function gotIt(code: string, viewers: Viewers, name: string, raw: Record<string, unknown>): Promise<HttpResult> {
@@ -155,30 +165,34 @@ export function makeHttpHandler(deps: Deps) {
     if (!viewer) return fail(404, 'Unknown viewer');
     const concepts = parseConcepts(raw.concepts);
     if (!concepts || concepts.length === 0) return fail(400, 'Unknown concept');
-    let v = viewer; const promotions: string[] = [];
-    for (const c of concepts) { const r = markGotIt(v, c); v = r.viewer; if (r.promotion) promotions.push(r.promotion); }
-    await store.putViewer(code, v);
-    return viewersReply(code, replaceViewer(viewers, v), promotions);
+    try {
+      const r = await mutate(code, viewer.name, v => {
+        let cur = v; const promotions: string[] = [];
+        for (const c of concepts) { const g = markGotIt(cur, c); cur = g.viewer; if (g.promotion) promotions.push(g.promotion); }
+        return { viewer: cur, promotions };
+      });
+      return viewersReply(code, await freshViewers(code, viewers), r?.promotions ?? []);
+    } catch (e) { if (e instanceof ConflictError) return busy(); throw e; }
   }
 
   async function undo(code: string, viewers: Viewers, name: string): Promise<HttpResult> {
     const viewer = findViewer(viewers, name);
     if (!viewer) return fail(404, 'Unknown viewer');
-    const v = undoPromotion(viewer);
-    await store.putViewer(code, v);
-    return viewersReply(code, replaceViewer(viewers, v), []);
+    try {
+      await mutate(code, viewer.name, v => ({ viewer: undoPromotion(v) }));
+      return viewersReply(code, await freshViewers(code, viewers), []);
+    } catch (e) { if (e instanceof ConflictError) return busy(); throw e; }
   }
 
-  /** R-04-c: a question that names a concept of the moment on screen resets that concept's view count for the asker. */
+  /** R-04-c: a question that names a concept of the moment on screen (whole words, simple plurals) resets that concept's view count for the asker. */
   async function noteAsked(code: string, viewers: Viewers, raw: Record<string, unknown>, text: string) {
     if (typeof raw.sessionId !== 'string') return;
     const asker = findViewer(viewers, raw.viewerName);
     const session = await store.getSession(code, raw.sessionId);
     if (!asker || !session?.concepts) return;
-    const lower = text.toLowerCase();
-    const named = session.concepts.filter(c => lower.includes(c));
+    const named = session.concepts.filter(c => new RegExp(`(?<![a-z0-9])${c}(?:e?s)?(?![a-z0-9])`, 'i').test(text));
     if (!named.length) return;
-    await store.putViewer(code, named.reduce((v, c) => recordAsked(v, c as Concept), asker));
+    await mutate(code, asker.name, v => ({ viewer: named.reduce((x, c) => recordAsked(x, c as Concept), v) }));
   }
 
   async function deliverAndNote(code: string, viewers: Viewers, raw: Record<string, unknown>, route: Route, text: string) {

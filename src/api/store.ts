@@ -17,6 +17,10 @@ export interface Store {
   /** Undefined when the household does not exist. */
   getViewers(code: string): Promise<Viewer[] | undefined>;
   putViewer(code: string, v: Viewer): Promise<void>;
+  /** One viewer with the version of its stored item (undefined for items written before versioning). */
+  getViewer(code: string, name: string): Promise<{ viewer: Viewer; version?: number } | undefined>;
+  /** Writes only if the item still has the version that was read; false on a conflicting write. */
+  putViewerIf(code: string, v: Viewer, version: number | undefined): Promise<boolean>;
   getSession(code: string, sessionId: string): Promise<Session | undefined>;
   putSession(code: string, sessionId: string, s: Session): Promise<void>;
   /** True the first time (session, moment, viewer) is claimed, false on every repeat: the idempotency key for "shown". */
@@ -71,6 +75,25 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
     },
     async putViewer(code, v) {
       await doc.send(new PutCommand({ TableName: table, Item: { pk: hh(code), sk: `VIEWER#${v.name.toLowerCase()}`, viewer: v, ttl: now() + HOUSEHOLD_TTL_S } }));
+    },
+    async getViewer(code, name) {
+      const r = await doc.send(new GetCommand({ TableName: table, Key: { pk: hh(code), sk: `VIEWER#${name.toLowerCase()}` } }));
+      return r.Item ? { viewer: r.Item.viewer as Viewer, version: r.Item.version as number | undefined } : undefined;
+    },
+    async putViewerIf(code, v, version) {
+      try {
+        await doc.send(new PutCommand({
+          TableName: table,
+          ConditionExpression: version === undefined ? 'attribute_exists(pk) AND attribute_not_exists(#v)' : '#v = :v',
+          ExpressionAttributeNames: { '#v': 'version' },
+          ...(version === undefined ? {} : { ExpressionAttributeValues: { ':v': version } }),
+          Item: { pk: hh(code), sk: `VIEWER#${v.name.toLowerCase()}`, viewer: v, version: (version ?? 0) + 1, ttl: now() + HOUSEHOLD_TTL_S },
+        }));
+        return true;
+      } catch (err) {
+        if ((err as { name?: string }).name === 'ConditionalCheckFailedException') return false;
+        throw err;
+      }
     },
     async getSession(code, sessionId) {
       const r = await doc.send(new GetCommand({ TableName: table, Key: { pk: hh(code), sk: `SESSION#${sessionId}` } }));
