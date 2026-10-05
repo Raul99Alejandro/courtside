@@ -4,5 +4,5 @@
     "strict": true, "noUncheckedIndexedAccess": true, "skipLibCheck": true,
     "resolveJsonModule": true, "types": ["node"]
   },
-  "include": ["src", "test", "infra", "scripts"]
+  "include": ["src", "test", "infra", "scripts", "web"]
 }

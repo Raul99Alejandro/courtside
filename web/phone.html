@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Courtside phone</title>
+<link rel="stylesheet" href="/common.css"></head>
+<body><main>
+<h1>Courtside</h1>
+<label for="code">Code on the TV</label>
+<div class="row"><input id="code" maxlength="12" autocomplete="off" autocapitalize="characters"><button id="join">Join</button></div>
+<div id="profiles"></div>
+<div id="add" hidden>
+  <div class="row"><input id="name" maxlength="30" placeholder="Your name">
+    <select id="level"><option value="beginner">Beginner</option><option value="fan">Fan</option><option value="expert">Expert</option></select>
+    <button id="addme">Add me</button></div>
+</div>
+<div id="ask" hidden>
+  <div class="row"><input id="question" maxlength="300" placeholder="Ask anything about the match"><button id="send">Send</button></div>
+</div>
+<p class="msg" id="msg"></p>
+<div id="answer"></div>
+<script type="module" src="/phone.ts"></script>
+</main></body></html>

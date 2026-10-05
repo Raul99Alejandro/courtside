@@ -1,0 +1,14 @@
+body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #0b1d12; color: #f3f7f4; }
+main { max-width: 640px; margin: 0 auto; }
+h1 { font-size: 1.4rem; }
+a { color: #8fe0b0; }
+input, select, button { font: inherit; padding: 10px 12px; border-radius: 8px; border: 1px solid #3c5a47; background: #14301f; color: inherit; }
+button { background: #1f8a4c; border-color: #1f8a4c; cursor: pointer; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.row > input { flex: 1; min-width: 0; }
+.card { background: #14301f; border-radius: 12px; padding: 14px 16px; margin: 12px 0; }
+.card small { color: #9db8a6; }
+.msg { color: #ffd479; min-height: 1.4em; }
+.code { font-size: 4rem; letter-spacing: 0.15em; font-weight: 700; }
+.chip { display: inline-block; padding: 6px 12px; margin: 4px 4px 4px 0; border-radius: 999px; border: 1px solid #3c5a47; background: transparent; }
+.chip.on { background: #1f8a4c; border-color: #1f8a4c; }

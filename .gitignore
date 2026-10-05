@@ -7,3 +7,6 @@ sources/
 spikes/**/data/
 spikes/**/out/
 build/
+dist-web/
+cdk.out/
+cdk-outputs.json
