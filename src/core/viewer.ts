@@ -23,36 +23,43 @@ export function showsBasicRow(v: Viewer, concepts: Concept[]): boolean {
   return layerFor(v, concepts) === 'basic';
 }
 
+/** R-03: the basic row, or the "Why?" offer in its place when the viewer already understands the moment. */
+export function basicRowFor(v: Viewer, concepts: Concept[]): { showBasic: boolean; offer?: 'Why?' } {
+  return showsBasicRow(v, concepts) ? { showBasic: true } : { showBasic: false, offer: 'Why?' };
+}
+
 /** R-03-b: asking about a concept always gets a basic answer for beginners; otherwise the viewer's base layer. */
 export function answerLayerForQuestion(v: Viewer, aboutConcept?: Concept): Layer {
   if (aboutConcept && v.level === 'beginner') return 'basic';
   return BASE[v.level];
 }
 
-function addUnderstood(v: Viewer, c: Concept): { viewer: Viewer; promotion?: string } {
+function addUnderstood(v: Viewer, c: Concept): { viewer: Viewer; promotion?: string; undoOffered?: true } {
   if (v.understood.includes(c)) return { viewer: v };
   let viewer: Viewer = { ...v, understood: [...v.understood, c] };
   let promotion: string | undefined;
+  let undoOffered: true | undefined;
   if (viewer.level === 'beginner' && !viewer.autoPromotionDisabled && viewer.understood.length >= PROMOTE_AT) {
     viewer = { ...viewer, level: 'fan', promotedAutomatically: true };
     promotion = `${viewer.name} moved up to Fan`;
+    undoOffered = true;
   }
-  return { viewer, promotion };
+  return { viewer, promotion, undoOffered };
 }
 
 /** R-04: "Got it" marks the concept understood at once. */
 export function markGotIt(v: Viewer, c: Concept) { return addUnderstood(v, c); }
 
 /** R-04: a basic explanation shown without a question counts; the second view makes it understood. */
-export function recordBasicShown(v: Viewer, concepts: Concept[]): { viewer: Viewer; promotion?: string } {
-  let viewer = v; let promotion: string | undefined;
+export function recordBasicShown(v: Viewer, concepts: Concept[]): { viewer: Viewer; promotion?: string; undoOffered?: true } {
+  let viewer = v; let promotion: string | undefined; let undoOffered: true | undefined;
   for (const c of concepts) {
     if (viewer.understood.includes(c)) continue;
     const n = (viewer.seenBasic[c] ?? 0) + 1;
     viewer = { ...viewer, seenBasic: { ...viewer.seenBasic, [c]: n } };
-    if (n >= UNDERSTOOD_AFTER_VIEWS) { const r = addUnderstood(viewer, c); viewer = r.viewer; promotion = r.promotion ?? promotion; }
+    if (n >= UNDERSTOOD_AFTER_VIEWS) { const r = addUnderstood(viewer, c); viewer = r.viewer; promotion = r.promotion ?? promotion; undoOffered = r.undoOffered ?? undoOffered; }
   }
-  return { viewer, promotion };
+  return { viewer, promotion, undoOffered };
 }
 
 /** R-04-c: asking about a concept resets its view count. */
