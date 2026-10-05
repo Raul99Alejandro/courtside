@@ -28,3 +28,12 @@ Format per entry (hackathon friction-log fields): task attempted · steps taken 
 - Severity: major
 - Workaround: Nova 2 Lite / Nova Pro meanwhile; owner submits the use-case form
 - Suggestion: mark inference profiles the caller cannot invoke (and EOL ones) in list-inference-profiles output
+
+## F-4: Most third-party frontier models listed but "not available for this account"
+- Task: compare OpenAI and Anthropic models on Bedrock for short explanations
+- Steps: list-foundation-models and list-inference-profiles show GPT-6.x, GPT-5.x, Claude Sonnet/Opus 5.5; Converse with us. and global. profiles
+- Expected: listed models invocable, or a clear reason and a self-service way to request access
+- Actual: AccessDeniedException "not available for this account … contact AWS Sales"
+- Severity: major
+- Workaround: Amazon Nova 2 Lite (works, ~1.2 s)
+- Suggestion: show per-account availability in the catalog and the API, and a self-service request path for hackathon/credit accounts
