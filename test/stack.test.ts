@@ -25,6 +25,13 @@ describe('Courtside stack', () => {
     expect(errors.map(e => `${e.id}: ${JSON.stringify(e.entry.data)}`)).toEqual([]);
   });
 
+  it('never routes OPTIONS to the Lambda, so API Gateway answers the CORS preflight', () => {
+    const keys = Object.values(t.findResources('AWS::ApiGatewayV2::Route'))
+      .map(r => String(r.Properties.RouteKey)).filter(k => k.includes('/'));
+    expect(keys.length).toBeGreaterThan(0);
+    for (const k of keys) expect(k, k).toMatch(/^(GET|POST) /);
+  });
+
   it('has exactly one table, on demand, with a ttl attribute and no PITR', () => {
     t.resourceCountIs('AWS::DynamoDB::Table', 1);
     t.hasResourceProperties('AWS::DynamoDB::Table', {

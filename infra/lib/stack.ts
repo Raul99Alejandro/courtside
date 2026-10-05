@@ -92,7 +92,8 @@ export class CourtsideStack extends Stack {
       // The site and the API are different origins; the household code is the only secret, so any origin may call.
       corsPreflight: { allowOrigins: ['*'], allowMethods: [apigw.CorsHttpMethod.GET, apigw.CorsHttpMethod.POST], allowHeaders: ['content-type'], maxAge: Duration.hours(1) },
     });
-    httpApi.addRoutes({ path: '/{proxy+}', methods: [apigw.HttpMethod.ANY], integration: new integrations.HttpLambdaIntegration('HttpIntegration', httpFn) });
+    // GET/POST only: an ANY route would also catch OPTIONS and break the CORS preflight answered by API Gateway.
+    httpApi.addRoutes({ path: '/{proxy+}', methods: [apigw.HttpMethod.GET, apigw.HttpMethod.POST], integration: new integrations.HttpLambdaIntegration('HttpIntegration', httpFn) });
     // Throttle both APIs (10 rps, burst 20); the question caps (300/hour, 600/day for the service) bound the Bedrock bill.
     const throttle = { throttlingRateLimit: 10, throttlingBurstLimit: 20 };
     (httpApi.defaultStage!.node.defaultChild as apigw.CfnStage).defaultRouteSettings = throttle;

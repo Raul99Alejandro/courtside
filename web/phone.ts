@@ -32,6 +32,8 @@ async function join() {
 
 async function addMe() {
   const name = $<HTMLInputElement>('name').value;
+  if (!name.trim()) { text(msg, 'Type your name first.'); return; }
+  text(msg, 'Adding...');
   const level = $<HTMLSelectElement>('level').value;
   const r = await call<Reply>('POST', `/households/${encodeURIComponent(code)}/viewers`, { name, level });
   if (r.status !== 200 || !r.data.viewers) { text(msg, r.data.message ?? 'Something went wrong'); return; }
@@ -101,13 +103,20 @@ let held = false;
 let starting = false; // a recorder is being set up: a second press must not start another
 let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
+const DICTATE_TIP = 'Voice works through your keyboard here: tap the question box and press the microphone key to dictate.';
+const micSupported = () => window.isSecureContext && !!navigator.mediaDevices?.getUserMedia && typeof MediaRecorder !== 'undefined';
+
 /** Why the mic cannot be used, in words a viewer can act on. */
 function micProblem(err: unknown): string {
   if (!window.isSecureContext) return 'Microphone needs a secure (https) page.';
-  if (!navigator.mediaDevices?.getUserMedia) return 'This browser cannot use the microphone here - open the link in Safari or Chrome.';
+  if (!navigator.mediaDevices?.getUserMedia) return DICTATE_TIP;
   if (typeof MediaRecorder === 'undefined') return 'This browser cannot record audio - update iOS or type your question.';
   const name = (err as { name?: string })?.name ?? 'Error';
-  if (name === 'NotAllowedError') return 'Microphone permission is off - allow it in Settings > Safari > Microphone (or the aA menu > Website Settings).';
+  if (name === 'NotAllowedError') return /CriOS/.test(navigator.userAgent)
+    ? 'Microphone is blocked for Chrome - turn it on in iPhone Settings > Chrome > Microphone, then reload.'
+    : /iPhone|iPad/.test(navigator.userAgent)
+      ? 'Microphone is blocked - tap aA in the address bar > Website Settings > Microphone > Allow, then reload.'
+      : 'Microphone is blocked - allow it from the lock icon in the address bar, then reload.';
   if (name === 'NotFoundError') return 'No microphone found.';
   return `Microphone not available (${name}) - type your question instead.`;
 }
@@ -147,6 +156,8 @@ function stopTalk() {
 }
 
 const talk = $('talk');
+// Without in-page recording (some in-app browsers), hide the button and point to keyboard dictation, which needs no permission.
+if (!micSupported()) { talk.hidden = true; text($('tip'), DICTATE_TIP); }
 // Tap to start, tap to send: more reliable on iOS than hold-to-talk (the permission sheet cancels pointer holds).
 talk.addEventListener('click', () => { if (recorder && recorder.state === 'recording') stopTalk(); else void startTalk(); });
 
