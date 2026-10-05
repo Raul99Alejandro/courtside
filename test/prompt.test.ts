@@ -2,7 +2,7 @@ import { it, expect } from 'vitest';
 import { cardPrompt, parseCard, judgeBasicPrompt, judgeFactsPrompt, parseJudge } from '../src/explain/prompt.js';
 import { judgeBasic, judgeFacts } from '../src/explain/judge.js';
 import { generateCard, type Stats } from '../src/explain/generate.js';
-import type { Moment } from '../src/core/index.js';
+import { DEFINITIONS, type Moment } from '../src/core/index.js';
 
 const m: Moment = {
   id: 'x', minute: 107, phase: 'extra time, second period', team: 'Argentina', player: 'Lionel Messi', what: 'Shot', outcome: 'Goal',
@@ -59,4 +59,18 @@ it('generateCard gives up after 3 attempts', async () => {
   const card = await generateCard(m, async () => ({ text: 'nonsense', modelId: 'f' }), undefined, stats(), w => (why = w));
   expect(card).toBeUndefined();
   expect(why.length).toBeGreaterThan(0);
+});
+it('cardPrompt carries the canonical definitions and asks for a faithful paraphrase', () => {
+  const { system, user } = cardPrompt(m);
+  expect(user).toContain('concept_definitions');
+  expect(user).toContain(DEFINITIONS.offside);
+  expect(user).toContain(DEFINITIONS.goal);
+  expect(system).toContain('paraphrase faithfully');
+});
+it('judge basic question requires consistency with the definition, via a fake converse', async () => {
+  expect(judgeBasicPrompt('s', m).user).toContain(`is consistent with this definition: ${DEFINITIONS.goal} ${DEFINITIONS.offside}`);
+  const seen: string[] = [];
+  await judgeBasic('s', m, async (_ids, _sys, user) => { seen.push(user); return { text: 'Verdict: yes', modelId: 'f' }; });
+  expect(seen[0]).toContain('is consistent with this definition');
+  expect(seen[0]).toContain('second-last defender');
 });

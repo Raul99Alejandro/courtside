@@ -34,7 +34,7 @@ describe('cardRowsFor', () => {
   it('falls back to the concept definitions when the moment has no card', () => {
     const rows = cardRowsFor({ ...goal, id: 'none' }, [leo, raul], cards);
     expect(rows).toHaveLength(2);
-    expect(rows[0].text).toContain('A goal means the ball goes into the net.');
+    expect(rows[0].text).toContain('A goal is scored when the whole ball crosses the goal line');
     expect(rows[0].text).toContain('Extra time');
     expect(rows[1].layer).toBe('tactical');
   });

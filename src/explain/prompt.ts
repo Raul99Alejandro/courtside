@@ -1,12 +1,12 @@
-import type { Layer, Moment } from '../core/index.js';
+import { DEFINITIONS, type Layer, type Moment } from '../core/index.js';
 
 export const SYSTEM = `You write explanation cards for a soccer replay app on a TV, watched by a household with mixed experience.
 Use only the facts given. Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. Each layer is one sentence.
-basic: for someone watching their first match; define every concept_to_teach in plain words, then say what happened in this moment; add no other detail (no durations, rules or consequences that are not in the facts). Aim for 18 words, hard maximum 28 words (count them).
+basic: for someone watching their first match; paraphrase faithfully the canonical definition given in concept_definitions for every concept_to_teach, without changing its meaning or adding or dropping a condition (shorten the wording, never the rule; one short clause per concept, never a long copy), then say what happened in this moment; add no other detail (no durations, rules or consequences that are not in the facts). Aim for 18 words, hard maximum 28 words for one concept, plus 10 more words for each further concept (count them).
 intermediate: for a casual fan; state what happened with the player, the minute and the score situation, in plain words (max 30 words).
 tactical: for an expert; one insight, not a list. Pick the one or two computed_tactical_facts that explain why this moment worked or failed, or what it changed in the match (for example a team protecting a lead with few minutes left, a shot taken with defenders in the way, a keeper caught off his line), and say that conclusion in an expert register, with the exact score and minute. Count every number in the line, the minute included (a score such as 3-2 counts as one number): at most two in total, so for example the score plus one fact, or the minute plus one fact, and write the other facts in words (a lone defender, a packed box, the final minutes); never a list of statistics; say 'yards', never coordinates. A conclusion is fine when it follows directly from the given facts; do not invent runs, shapes, history or intent. Do not just repeat the intermediate line (aim for 28 words, hard maximum 35).
 basic and intermediate are strictly factual; tactical uses only the given facts and computed_tactical_facts, and may draw one conclusion that follows directly from them. No invented interpretation, no judgement words (critical, costly, dramatic, crucial, pressure, lifeline), no intent (needed, sought, tried to), no consequences (what it means, what it prevented, what happens next), no tactics, runs, shapes or history beyond the facts given, and time remaining only from computed_tactical_facts. Say who did what, where (the zone given), when and what the score was. Use soccer words: say 'match', never 'game' in basic lines; a goal is a goal, never a 'point'; no American-football terms. Never use the em dash character; use commas or full stops. Never append a word count such as "(25 words)".
-State the outcome exactly: Saved = the goalkeeper stopped it, Blocked = a defender blocked it, Off T = it went off target, Wayward = it went wide, Post = it hit the post, Pass Offside = the pass was ruled offside, Goal = it scored; never invent a different result. Define each concept_to_teach as a general rule; the notes list extra true facts you may use.
+State the outcome exactly: Saved = the goalkeeper stopped it, Blocked = a defender blocked it, Off T = it went off target, Wayward = it went wide, Post = it hit the post, Pass Offside = the pass was ruled offside, Goal = it scored; never invent a different result. Define each concept_to_teach only through concept_definitions, never from your own memory of the rules; the notes list extra true facts you may use.
 When an effect with a score is given, the intermediate and tactical layers must state that score (for example 3-2) and must not say the score is level.
 Output exactly three lines: "basic: ...", "intermediate: ...", "tactical: ...".`;
 
@@ -48,6 +48,7 @@ export function momentFacts(m: Moment, matchTitle = 'Argentina vs France') {
     outcome: m.outcome ?? null,
     zone: m.zone ?? null,
     concepts_to_teach: m.concepts,
+    concept_definitions: Object.fromEntries(m.concepts.map(c => [c, DEFINITIONS[c]])),
     notes: notes(m),
     computed_tactical_facts: tacticalFacts(m),
   };
@@ -71,8 +72,8 @@ export function parseCard(text: string): Partial<Record<Layer, string>> {
 /** R-05 LLM check: does the basic line explain the concepts in plain words using only the facts? */
 export function judgeBasicPrompt(text: string, m: Moment, matchTitle?: string): { system: string; user: string } {
   return {
-    system: JUDGE_SYSTEM + ' Say no only if a named concept is not defined at all, is defined wrongly, or is explained in jargon. A general definition need not match this moment or its score; the notes are true facts.',
-    user: `Does this sentence explain ${m.concepts.join(' and ')} in plain words for a first-time viewer, using only these facts: ${JSON.stringify(momentFacts(m, matchTitle))}? Answer yes or no.
+    system: JUDGE_SYSTEM + ' Say no only if a named concept is not defined at all, is defined wrongly or contradicts the given definition, or is explained in jargon. A general definition need not match this moment or its score; the notes are true facts.',
+    user: `Does this sentence explain ${m.concepts.join(' and ')} in plain words for a first-time viewer, using only these facts: ${JSON.stringify(momentFacts(m, matchTitle))}, and is consistent with this definition: ${m.concepts.map(c => DEFINITIONS[c]).join(' ')}? Answer yes or no.
 
 Sentence: ${text}`,
   };

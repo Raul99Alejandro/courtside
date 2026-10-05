@@ -1,5 +1,4 @@
-import { composeCard, layerFor, type Layer, type Moment, type Viewer } from '@courtside/core';
-import { CONCEPT_DEFINITIONS } from './concept-definitions';
+import { composeCard, layerFor, DEFINITIONS as CONCEPT_DEFINITIONS, type Layer, type Moment, type Viewer } from '@courtside/core';
 
 export type Cards = Record<string, Record<Layer, string>>;
 

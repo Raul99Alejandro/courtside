@@ -1,6 +1,8 @@
 import type { Layer, Moment } from './types.js';
 
 export const MAX_WORDS: Record<Layer, number> = { basic: 28, intermediate: 30, tactical: 35 };
+/** A basic line that must paraphrase several definitions gets this many extra words per concept after the first. */
+export const BASIC_WORDS_PER_EXTRA_CONCEPT = 10;
 export const BANNED_TERMS = ['World Cup', 'FIFA'];
 /** Any square bracket means a coordinate pair leaked into the text. */
 export const FORBIDDEN_MARKERS = ['['];
@@ -27,12 +29,13 @@ export function definesConcept(text: string, concept: string): boolean {
 }
 
 /** R-05 deterministic checks. Returns a list of problems; empty means the card passes. */
-export function checkCard(text: string, layer: Layer, m: Partial<Pick<Moment, 'effect' | 'scoreAfter'>>): string[] {
+export function checkCard(text: string, layer: Layer, m: Partial<Pick<Moment, 'effect' | 'scoreAfter' | 'concepts'>>): string[] {
   const problems: string[] = [];
   const t = text.trim();
   if (!t) return ['empty'];
   const words = t.split(/\s+/).length;
-  if (words > MAX_WORDS[layer]) problems.push(`too long: ${words} > ${MAX_WORDS[layer]}`);
+  const max = MAX_WORDS[layer] + (layer === 'basic' ? BASIC_WORDS_PER_EXTRA_CONCEPT * Math.max(0, (m.concepts?.length ?? 0) - 1) : 0);
+  if (words > max) problems.push(`too long: ${words} > ${max}`);
   if (COORDS.test(t) || FORBIDDEN_MARKERS.some(x => t.includes(x))) problems.push('mentions coordinates');
   if (t.includes('—')) problems.push('contains an em dash; use a comma or a full stop');
   if (/\(\d+\s*words?\)/i.test(t)) problems.push('contains a word count; do not append word counts');
