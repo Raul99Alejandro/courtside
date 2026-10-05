@@ -1,4 +1,4 @@
-import type { Layer, Moment } from '../core/index.js';
+import { checkCard, type Layer, type Moment } from '../core/index.js';
 import { converse as realConverse, LIVE_MODELS, type Converse } from './bedrock.js';
 import { momentFacts } from './prompt.js';
 
@@ -18,7 +18,8 @@ export async function answerQuestion(
   const user = (input.moment ? `Current moment: ${JSON.stringify(momentFacts(input.moment))}\n\n` : '') + `Question: ${input.question}`;
   try {
     const r = await deps.converse(LIVE_MODELS, system, user, 200);
-    return r.text.trim() || FALLBACK_ANSWER;
+    const text = r.text.trim();
+    return text && checkCard(text, input.layer, {}).filter(p => !p.startsWith('too long')).length === 0 ? text : FALLBACK_ANSWER;
   } catch {
     return FALLBACK_ANSWER;
   }

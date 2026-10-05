@@ -35,3 +35,16 @@ it('thins non-goal shots to one per 5 minutes but keeps goals, offsides and card
 it('drops a moment with no concept', () => {
   expect(curate([ev({ id: 'p', minute: 3, team: 'A', type: 'Pass', extra: { pass: {} } })], [])).toEqual([]);
 });
+import { conceptsFor } from '../src/core/index.js';
+const me = (type: string, outcome?: string) => ({ id: 'x', minute: 1, period: 1, team: 'A', type, ...(outcome && { outcome }) });
+it('tags shot on goal only for saved shots', () => {
+  expect(conceptsFor(me('Shot', 'Saved'))).toEqual(['shot on goal', 'save']);
+  for (const o of ['Blocked', 'Off T', 'Wayward', 'Post']) expect(conceptsFor(me('Shot', o))).toEqual(['shot']);
+  expect(conceptsFor(me('Shot', 'Goal'))).toEqual(['goal']);
+});
+it('an assist knows the goal it set up', () => {
+  const pass = ev({ id: 'p', minute: 9, team: 'A', type: 'Pass', extra: { pass: { goal_assist: true } } });
+  const g = ev({ id: 'g', minute: 10, team: 'A', type: 'Shot', extra: { shot: { outcome: { name: 'Goal' }, type: { name: 'Open Play' }, key_pass_id: 'p' } } });
+  const m = curate([pass, g], []);
+  expect(m[0]!.setsUp).toEqual({ player: 'P', minute: 10, effect: 'opens the scoring 1-0' });
+});

@@ -21,6 +21,7 @@ export const converse: Converse = async (modelIds, system, user, maxTokens) => {
         inferenceConfig: { maxTokens },
       }));
       const text = (r.output?.message?.content ?? []).map(c => c.text ?? '').join('').trim();
+      if (!text) throw new Error(`empty response from ${modelId}`);
       return { text, modelId, inputTokens: r.usage?.inputTokens, outputTokens: r.usage?.outputTokens };
     } catch (err) { last = err; }
   }

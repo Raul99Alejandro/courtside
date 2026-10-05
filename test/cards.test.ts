@@ -17,3 +17,4 @@ it('flags equalises/equalizes for a puts-ahead effect', () => {
   expect(checkCard('Messi equalises 3-2.', 'intermediate', { effect: 'puts Argentina ahead 3-2' })).toContain('contradicts effect: says level');
   expect(checkCard('Messi equalizes 3-2.', 'intermediate', { effect: 'puts Argentina ahead 3-2' })).toContain('contradicts effect: says level');
 });
+it('flags the em dash', () => expect(checkCard('Messi scores — again.', 'basic', {})).toContainEqual(expect.stringContaining('em dash')));

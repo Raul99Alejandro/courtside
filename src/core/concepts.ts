@@ -8,7 +8,7 @@ export function conceptsFor(e: MatchEvent): Concept[] {
   if (e.card === 'Yellow Card') out.push('yellow card');
   if (e.card === 'Red Card' || e.card === 'Second Yellow') out.push('red card');
   if (e.type === 'Pass' && e.goalAssist) out.push('assist');
-  if (e.type === 'Shot' && e.shotType !== 'Penalty') out.push(e.outcome === 'Goal' ? 'goal' : 'shot on goal');
+  if (e.type === 'Shot' && e.shotType !== 'Penalty') out.push(e.outcome === 'Goal' ? 'goal' : e.outcome === 'Saved' ? 'shot on goal' : 'shot');
   if (e.type === 'Shot' && e.outcome === 'Saved') out.push('save');
   if (e.period === 3 || e.period === 4) out.push('extra time');
   if (e.period === 5) out.push('penalty shoot-out');

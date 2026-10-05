@@ -2,24 +2,20 @@ import type { Layer, Moment } from '../core/index.js';
 
 export const SYSTEM = `You write explanation cards for a soccer replay app on a TV, watched by a household with mixed experience.
 Use only the facts given. Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. Each layer is one sentence.
-basic: for someone watching their first match; define every concept_to_teach in plain words, then say what happened in this moment; add no other detail (no durations, rules or consequences that are not in the facts). Aim for 20 words, hard maximum 28 words.
-intermediate: for a casual fan; why this moment matters in the match (max 30 words).
-tactical: for an expert; the tactical or game-state angle, no clichés (max 35 words).
+basic: for someone watching their first match; define every concept_to_teach in plain words, then say what happened in this moment; add no other detail (no durations, rules or consequences that are not in the facts). Aim for 18 words, hard maximum 28 words (count them).
+intermediate: for a casual fan; state what happened with the player, the minute and the score situation, in plain words (max 30 words).
+tactical: for an expert; the same facts in an expert register (booking, block, final third, game state, level on 2-2), adding the exact score and minute (max 35 words).
+Both are strictly factual: no interpretation, no judgement words (critical, costly, dramatic, crucial, pressure, lifeline), no intent (needed, sought, tried to), no consequences (what it means, what it prevented, what happens next), no tactics, runs, shapes, history or time remaining. Say who did what, where (the zone given), when and what the score was. Never use the em dash character; use commas or full stops.
 State the outcome exactly: Saved = the goalkeeper stopped it, Blocked = a defender blocked it, Off T = it went off target, Wayward = it went well off target, Goal = it scored; never invent a different result. Define each concept_to_teach as a general rule; the notes list extra true facts you may use.
 When an effect with a score is given, the intermediate and tactical layers must state that score (for example 3-2) and must not say the score is level.
 Output exactly three lines: "basic: ...", "intermediate: ...", "tactical: ...".`;
 
-const MISSED = ['Blocked', 'Off T', 'Wayward'];
-/** Concepts as taught: a missed or blocked shot is not a 'shot on goal', so it teaches plain 'shot'. */
-export const taughtConcepts = (m: Moment): string[] =>
-  m.concepts.map(c => (c === 'shot on goal' && m.outcome && MISSED.includes(m.outcome) ? 'shot' : c));
-
 function notes(m: Moment): string[] {
   const n: string[] = [];
-  if (m.concepts.includes('assist')) n.push('this pass was the assist: a goal was scored right after it');
+  if (m.concepts.includes('assist')) n.push(m.setsUp ? `this pass was the assist for ${m.setsUp.player ?? 'a teammate'}'s goal in minute ${m.setsUp.minute}, which ${m.setsUp.effect}` : 'this pass was the assist: a goal was scored right after it');
   if (m.concepts.includes('penalty kick')) n.push('this shot was a penalty kick taken from the penalty spot');
   if (m.concepts.includes('extra time')) n.push('this moment is in extra time, the 30 extra minutes played because the match was level after 90');
-  if (taughtConcepts(m).includes('shot')) n.push('a shot is an attempt to score');
+  if (m.concepts.includes('shot')) n.push('a shot is an attempt to score');
   return n;
 }
 
@@ -37,7 +33,7 @@ export function momentFacts(m: Moment, matchTitle = 'Argentina vs France') {
     what: m.what,
     outcome: m.outcome ?? null,
     zone: m.zone ?? null,
-    concepts_to_teach: taughtConcepts(m),
+    concepts_to_teach: m.concepts,
     notes: notes(m),
   };
 }
@@ -57,12 +53,28 @@ export function parseCard(text: string): Partial<Record<Layer, string>> {
   return out;
 }
 
-/** R-05 LLM check: does the basic line explain the concepts using only the facts? */
-export function judgePrompt(text: string, m: Moment, matchTitle?: string): { system: string; user: string } {
+/** R-05 LLM check: does the basic line explain the concepts in plain words using only the facts? */
+export function judgeBasicPrompt(text: string, m: Moment, matchTitle?: string): { system: string; user: string } {
   return {
-    system: 'You are a strict reviewer. Answer with exactly one word: yes or no. Default to yes. Say no only if (a) a named concept is not defined at all or is defined wrongly or in jargon, or (b) the sentence states a fact about this moment that is absent from or contradicts the facts. Do not judge whether the moment itself counts as the concept: the concepts are teaching topics for this moment, so a missed shot or a pass without a goal may still be used to explain them; do not penalise a general definition of the concept (a general definition need not match the score), and the notes are true facts.',
-    user: `Does this sentence explain ${taughtConcepts(m).join(' and ')} in plain words for a first-time viewer, using only these facts: ${JSON.stringify(momentFacts(m, matchTitle))}? Answer yes or no.\n\nSentence: ${text}`,
+    system: JUDGE_SYSTEM + ' Say no only if a named concept is not defined at all, is defined wrongly, or is explained in jargon. A general definition need not match this moment or its score; the notes are true facts.',
+    user: `Does this sentence explain ${m.concepts.join(' and ')} in plain words for a first-time viewer, using only these facts: ${JSON.stringify(momentFacts(m, matchTitle))}? Answer yes or no.
+
+Sentence: ${text}`,
   };
 }
 
-export const parseJudge = (text: string): boolean => /^\W*yes\b/i.test(text.trim());
+/** Fact check for every layer: nothing invented beyond the facts. */
+export function judgeFactsPrompt(text: string, m: Moment, matchTitle?: string): { system: string; user: string } {
+  return {
+    system: JUDGE_SYSTEM + ' Say no only if the sentence states something about this moment that is absent from or contradicts the facts. The notes are true facts, and general definitions of soccer concepts are allowed. Statements derived from the facts are fine: who is leading, trailing or level from scoreBefore and scoreAfter (the team named first in a score is not necessarily the leader, compare the numbers), the minute, the phase, the zone, the player and team names, and the outcome (Pass Offside means the pass was ruled offside).',
+    user: `Does this sentence use only these facts and invent nothing (no claims about tactics, runs, shapes, history or time not in the facts): ${JSON.stringify(momentFacts(m, matchTitle))}? Answer yes or no.
+
+Sentence: ${text}`,
+  };
+}
+const JUDGE_SYSTEM = 'You are a strict reviewer. Check the sentence against the facts in at most two short sentences, then end with exactly "Verdict: yes" or "Verdict: no".';
+
+export const parseJudge = (text: string): boolean => {
+  const v = text.match(/verdict:\s*(yes|no)/i);
+  return v ? v[1]!.toLowerCase() === 'yes' : /^\W*yes\b/i.test(text.trim());
+};

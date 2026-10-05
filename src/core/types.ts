@@ -4,7 +4,7 @@ export const LAYER_ORDER: readonly Layer[] = ['basic', 'intermediate', 'tactical
 
 export type Concept =
   | 'penalty kick' | 'offside' | 'yellow card' | 'red card' | 'assist'
-  | 'shot on goal' | 'goal' | 'extra time' | 'penalty shoot-out' | 'save';
+  | 'shot on goal' | 'shot' | 'goal' | 'extra time' | 'penalty shoot-out' | 'save';
 
 export interface Viewer {
   name: string;
@@ -45,6 +45,8 @@ export interface Moment {
   scoreBefore: Record<string, number>;
   scoreAfter: Record<string, number>;
   effect?: string;              // 'puts Argentina ahead 3-2', 'levels it 2-2', 'pulls one back 2-1', 'makes it 2-0'
+  /** For an assist: the goal this pass created. */
+  setsUp?: { player?: string; minute: number; effect: string };
   zone?: string;
   ball?: [number, number];
   players?: { x: number; y: number; teammate: boolean; actor: boolean; keeper: boolean }[];

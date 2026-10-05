@@ -1,6 +1,6 @@
 import { it, expect } from 'vitest';
-import { cardPrompt, parseCard, judgePrompt, parseJudge } from '../src/explain/prompt.js';
-import { judgeBasic } from '../src/explain/judge.js';
+import { cardPrompt, parseCard, judgeBasicPrompt, judgeFactsPrompt, parseJudge } from '../src/explain/prompt.js';
+import { judgeBasic, judgeFacts } from '../src/explain/judge.js';
 import { generateCard, type Stats } from '../src/explain/generate.js';
 import type { Moment } from '../src/core/index.js';
 
@@ -21,6 +21,11 @@ it('cardPrompt carries facts and rules but no coordinates', () => {
   expect(user + system).not.toMatch(/118\.4|40\.2|91\.2345|33\.3333|"ball"|"players"/);
   expect(user).not.toMatch(/World Cup|FIFA/i);
 });
+it('assist notes name the goal it set up', () => {
+  const a: Moment = { ...m, concepts: ['assist'], setsUp: { player: 'Lionel Messi', minute: 23, effect: 'opens the scoring 1-0' } };
+  expect(cardPrompt(a).user).toContain('assist for Lionel Messi');
+  expect(cardPrompt(a).user).toContain('opens the scoring 1-0');
+});
 it('cardPrompt appends problems on retry', () => expect(cardPrompt(m, undefined, ['basic: too long']).user).toContain('basic: too long'));
 it('parseCard reads three lines', () => {
   expect(parseCard('basic: a\nintermediate: b\ntactical: c')).toEqual({ basic: 'a', intermediate: 'b', tactical: 'c' });
@@ -29,18 +34,23 @@ it('parseCard reads three lines', () => {
 it('judge parsing', async () => {
   expect(parseJudge('Yes.')).toBe(true);
   expect(parseJudge('no')).toBe(false);
+  expect(parseJudge('No, because x. Actually it fits. Verdict: yes')).toBe(true);
+  expect(parseJudge('It says yes to everything. Verdict: no')).toBe(false);
   expect(parseJudge('No, it does not')).toBe(false);
-  expect(judgePrompt('s', m).user).toContain('goal and offside');
-  expect(await judgeBasic('s', m, async () => ({ text: 'yes', modelId: 'f' }))).toBe(true);
-  expect(await judgeBasic('s', m, async () => ({ text: 'No', modelId: 'f' }))).toBe(false);
+  expect(judgeBasicPrompt('s', m).user).toContain('goal and offside');
+  expect(judgeFactsPrompt('s', m).user).toContain('invent nothing');
+  expect(await judgeBasic('s', m, async () => ({ text: 'yes', modelId: 'f' }))).toEqual({ ok: true });
+  expect(await judgeBasic('s', m, async () => ({ text: 'No', modelId: 'f' }))).toEqual({ ok: false });
+  expect(await judgeFacts('s', m, async () => ({ text: 'No', modelId: 'f' }))).toEqual({ ok: false });
+  expect(await judgeFacts('s', m, async () => { throw new Error('x'); })).toEqual({ ok: true, error: true });
 });
 const good = 'basic: Offside means an attacker is nearer the goal than the ball and the last two defenders when passed to.\nintermediate: Messi scores in extra time and puts Argentina ahead 3-2.\ntactical: Argentina lead 3-2 after pressing high and winning the second ball.';
-const stats = (): Stats => ({ calls: 0, retries: 0, inputTokens: 0, outputTokens: 0 });
+const stats = (): Stats => ({ calls: 0, retries: 0, judgeErrors: 0, inputTokens: 0, outputTokens: 0 });
 it('generateCard retries on a failed check, then a no judge, then succeeds', async () => {
   const replies = ['basic: x\nintermediate: Messi equalises 3-2.\ntactical: Lead 3-2.', good, good, good];
-  const judge = ['no', 'yes'];
+  const judge = ['no', 'no'];
   const s = stats();
-  const card = await generateCard(m, async (_ids, sys) => ({ text: sys.includes('strict reviewer') ? judge.shift()! : replies.shift()!, modelId: 'f' }), undefined, s);
+  const card = await generateCard(m, async (_ids, sys, user) => ({ text: sys.includes('strict reviewer') ? (user.includes('plain words') && judge.shift() ? 'Verdict: no' : 'Verdict: yes') : replies.shift()!, modelId: 'f' }), undefined, s);
   expect(card?.intermediate).toContain('3-2');
   expect(s.retries).toBe(2);
 });

@@ -6,7 +6,7 @@ export interface RawEvent {
   id: string; minute: number; period: number;
   type: { name: string }; team: { name: string }; player?: { name: string };
   location?: [number, number];
-  shot?: { outcome?: { name: string }; type?: { name: string } };
+  shot?: { outcome?: { name: string }; type?: { name: string }; key_pass_id?: string };
   pass?: { outcome?: { name: string }; goal_assist?: boolean };
   foul_committed?: { card?: { name: string } };
 }
@@ -59,6 +59,17 @@ export function curate(events: RawEvent[], frames: RawFrame[]): Moment[] {
   const teams = [...new Set(events.map(e => e.team.name))];
   const frameById = new Map(frames.map(f => [f.event_uuid, f]));
   const score: Record<string, number> = Object.fromEntries(teams.map(t => [t, 0]));
+  // Goals by the id of the pass that set them up, so an assist can say which goal it created.
+  const goalByPass = new Map<string, NonNullable<Moment['setsUp']>>();
+  {
+    const run: Record<string, number> = Object.fromEntries(teams.map(t => [t, 0]));
+    for (const e of events) {
+      if (e.period > 4 || e.type.name !== 'Shot' || e.shot?.outcome?.name !== 'Goal') continue;
+      const before = { ...run };
+      run[e.team.name] = (run[e.team.name] ?? 0) + 1;
+      if (e.shot.key_pass_id) goalByPass.set(e.shot.key_pass_id, { ...(e.player && { player: e.player.name }), minute: e.minute, effect: effectOf(e.team.name, before, { ...run }) });
+    }
+  }
   const out: Moment[] = [];
   const shotBuckets = new Set<number>();
   for (const e of events) {
@@ -89,6 +100,7 @@ export function curate(events: RawEvent[], frames: RawFrame[]): Moment[] {
       ...(outcome && { outcome }),
       concepts, scoreBefore: before, scoreAfter: after,
       ...(isGoal && { effect: effectOf(e.team.name, before, after) }),
+      ...(goalByPass.get(e.id) && concepts.includes('assist') && { setsUp: goalByPass.get(e.id) }),
       ...(e.location && { zone: zone(e.location), ball: e.location }),
       ...(players && { players }),
     });
