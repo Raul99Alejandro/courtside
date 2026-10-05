@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { newViewer, type Viewer } from '../src/core/index.js';
 import { makeHttpHandler, type HttpEvent } from '../src/api/http.js';
 import type { Store } from '../src/api/store.js';
+import { wav } from './wav.js';
 
 const FALLBACK = "I couldn't answer that right now - try again in a moment.";
 
@@ -160,5 +161,63 @@ describe('http handler', () => {
 
   it('unknown route is 404', async () => {
     expect((await handler()(ev('GET', '/nope'))).statusCode).toBe(404);
+  });
+});
+
+describe('audio question route', () => {
+  const wavB64 = (samples = 16000) => Buffer.from(wav(samples)).toString('base64');
+  let f: ReturnType<typeof fakeStore>;
+  let pushed: unknown[]; let asked: string[]; let heard: string;
+  const handler = (tr?: (pcm: Uint8Array) => Promise<string>) => makeHttpHandler({
+    store: f.store,
+    answer: async i => { asked.push(i.question); return 'Offside is being ahead of the last defender.'; },
+    push: async (_ids, payload) => { pushed.push(payload); return []; },
+    transcribe: tr ?? (async () => heard),
+  });
+  const post = (body: unknown) => ev('POST', '/households/ABC234/questions/audio', body);
+
+  beforeEach(() => {
+    f = fakeStore(); pushed = []; asked = []; heard = 'what is offside';
+    f.households.set('ABC234', [newViewer('Leo', 'beginner')]);
+    f.conns.set('ABC234', ['c1']);
+  });
+
+  it('transcribes, then answers and pushes like the text route', async () => {
+    const r = await handler()(post({ viewerName: 'Leo', wavBase64: wavB64() }));
+    expect(r.statusCode).toBe(200);
+    expect(json(r)).toEqual({ ok: true, answer: 'Offside is being ahead of the last defender.' });
+    expect(asked).toEqual(['what is offside']);
+    expect(pushed).toHaveLength(1);
+  });
+  it('empty transcript is a friendly not-ok and asks nothing', async () => {
+    heard = '  ';
+    const r = await handler()(post({ viewerName: 'Leo', wavBase64: wavB64() }));
+    expect(json(r)).toEqual({ ok: false, message: "I didn't catch that - try again or type it." });
+    expect(asked).toEqual([]);
+  });
+  it('a Transcribe failure is also not-ok', async () => {
+    const r = await handler(async () => { throw new Error('boom'); })(post({ viewerName: 'Leo', wavBase64: wavB64() }));
+    expect(json(r).ok).toBe(false);
+  });
+  it('needs a viewer and does not transcribe without one', async () => {
+    let called = false;
+    const r = await handler(async () => { called = true; return 'x'; })(post({ wavBase64: wavB64() }));
+    expect(r.statusCode).toBe(400);
+    expect(json(r).message).toBe('Pick who you are first');
+    expect(called).toBe(false);
+  });
+  it('rejects missing, invalid and too-long audio', async () => {
+    expect((await handler()(post({ viewerName: 'Leo' }))).statusCode).toBe(400);
+    expect((await handler()(post({ viewerName: 'Leo', wavBase64: 'AAAA' }))).statusCode).toBe(400);
+    expect((await handler()(post({ viewerName: 'Leo', wavBase64: wavB64(16000 * 9) }))).statusCode).toBe(400);
+  });
+  it('accepts an 8 s body here but the text route keeps 2 KB', async () => {
+    expect((await handler()(post({ viewerName: 'Leo', wavBase64: wavB64(16000 * 8) }))).statusCode).toBe(200);
+    const t = await handler()(ev('POST', '/households/ABC234/questions', { viewerName: 'Leo', question: 'x'.repeat(3000) }));
+    expect(json(t).message).toBe('Request is too big');
+  });
+  it('applies the household cap', async () => {
+    f = fakeStore(30); f.households.set('ABC234', [newViewer('Leo', 'beginner')]);
+    expect((await handler()(post({ viewerName: 'Leo', wavBase64: wavB64() }))).statusCode).toBe(429);
   });
 });

@@ -79,6 +79,10 @@ export class CourtsideStack extends Stack {
       ],
     }));
     httpFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['transcribe:StartStreamTranscription'],
+      resources: ['*'], // Transcribe streaming has no resource-level permissions
+    }));
+    httpFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['execute-api:ManageConnections'],
       resources: [`arn:aws:execute-api:${this.region}:${this.account}:${wsApi.apiId}/${WS_STAGE}/POST/@connections/*`],
     }));
@@ -144,9 +148,10 @@ export class CourtsideStack extends Stack {
       id: 'AwsSolutions-IAM5',
       appliesTo: [
         ...FOUNDATION_MODELS.map(m => `Resource::arn:aws:bedrock:*::foundation-model/${m}`),
+        'Resource::*',
         { regex: '/^Resource::arn:aws:execute-api:.+\\/prod\\/POST\\/@connections\\/\\*$/' },
       ],
-      reason: 'Bedrock: the us. cross-region inference profiles route to several US regions, so the foundation-model ARN needs a region wildcard (the model ids are fixed). execute-api: connection ids are unknown in advance, so the ARN ends in @connections/* on our one WebSocket API stage.',
+      reason: 'Bedrock: the us. cross-region inference profiles route to several US regions, so the foundation-model ARN needs a region wildcard (the model ids are fixed). Transcribe: StartStreamTranscription does not support resource-level permissions. execute-api: connection ids are unknown in advance, so the ARN ends in @connections/* on our one WebSocket API stage.',
     }], true);
     const deployHandler = 'Custom::CDKBucketDeployment8693BB64968944B69AAFB0CC9EB8756C';
     NagSuppressions.addResourceSuppressionsByPath(this, `/${this.stackName}/${deployHandler}/ServiceRole/DefaultPolicy/Resource`, [{

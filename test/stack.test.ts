@@ -52,6 +52,14 @@ describe('Courtside stack', () => {
     expect(manage[0]![0]).toMatch(/Http/);
   });
 
+  it('lets only the http Lambda stream to Transcribe, with exactly that one action', () => {
+    const tr = Object.entries(t.findResources('AWS::IAM::Policy')).filter(([, p]) => JSON.stringify(p).includes('transcribe:'));
+    expect(tr).toHaveLength(1);
+    expect(tr[0]![0]).toMatch(/Http/);
+    const actions = statements().flatMap(s => [s.Action].flat()).filter(a => a.startsWith('transcribe:'));
+    expect(actions).toEqual(['transcribe:StartStreamTranscription']);
+  });
+
   it('serves the site from CloudFront with index.html as the root', () => {
     t.hasResourceProperties('AWS::CloudFront::Distribution', { DistributionConfig: { DefaultRootObject: 'index.html' } });
     t.hasResourceProperties('AWS::S3::Bucket', { PublicAccessBlockConfiguration: { BlockPublicAcls: true, BlockPublicPolicy: true, IgnorePublicAcls: true, RestrictPublicBuckets: true } });

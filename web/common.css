@@ -12,3 +12,5 @@ button { background: #1f8a4c; border-color: #1f8a4c; cursor: pointer; }
 .code { font-size: 4rem; letter-spacing: 0.15em; font-weight: 700; }
 .chip { display: inline-block; padding: 6px 12px; margin: 4px 4px 4px 0; border-radius: 999px; border: 1px solid #3c5a47; background: transparent; }
 .chip.on { background: #1f8a4c; border-color: #1f8a4c; }
+
+#talk { flex: 1; padding: 18px 12px; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; }
