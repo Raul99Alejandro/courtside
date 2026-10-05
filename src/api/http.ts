@@ -1,4 +1,5 @@
-import { addViewer, newViewer, normaliseCode, routeQuestion, type Layer, type Level } from '../core/index.js';
+import { randomUUID } from 'node:crypto';
+import { addViewer, markGotIt, newViewer, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Viewer } from '../core/index.js';
 import { answerQuestion, FALLBACK_ANSWER } from '../explain/answer.js';
 import { postToConnections, type Push } from './push.js';
 import { dynamoStore, type Store } from './store.js';
@@ -27,6 +28,8 @@ export const MAX_GLOBAL_QUESTIONS_PER_HOUR = 300; // cost cap for the whole serv
 export const MAX_GLOBAL_QUESTIONS_PER_DAY = 600;
 export const MAX_PROFILES_PER_HOUSEHOLD = 10;
 const LEVELS: Level[] = ['beginner', 'fan', 'expert'];
+const CONCEPTS: Concept[] = ['penalty kick', 'offside', 'yellow card', 'red card', 'assist', 'shot on goal', 'shot', 'goal', 'extra time', 'penalty shoot-out', 'save'];
+const MAX_MOMENT_ID_CHARS = 64;
 
 const reply = (statusCode: number, data: unknown): HttpResult => ({ statusCode, headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
 const fail = (statusCode: number, message: string) => reply(statusCode, { message });
@@ -72,7 +75,7 @@ export function makeHttpHandler(deps: Deps) {
     if (!text) return fail(400, 'Ask a question first');
     if (text.length > MAX_QUESTION_CHARS) return fail(400, `Keep the question under ${MAX_QUESTION_CHARS} characters`);
     const route = await admit(code, viewers, raw);
-    return 'layer' in route ? deliver(code, route, text) : route;
+    return 'layer' in route ? deliverAndNote(code, viewers, raw, route, text) : route;
   }
 
   async function audioQuestion(code: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
@@ -85,7 +88,103 @@ export function makeHttpHandler(deps: Deps) {
     try { text = (await (deps.transcribe ??= makeTranscriber())(wav.pcm)).trim().slice(0, MAX_QUESTION_CHARS); }
     catch { /* treated as not heard */ }
     if (!text) return reply(200, { ok: false, message: DIDNT_CATCH });
-    return deliver(code, route, text);
+    return deliverAndNote(code, viewers, raw, route, text);
+  }
+
+  const findViewer = (viewers: Viewers, name: unknown) =>
+    typeof name === 'string' ? viewers.find(v => v.name.toLowerCase() === name.trim().toLowerCase()) : undefined;
+
+  const parseConcepts = (v: unknown): Concept[] | undefined =>
+    Array.isArray(v) && v.length <= CONCEPTS.length && v.every(c => CONCEPTS.includes(c as Concept)) ? [...new Set(v as Concept[])] : undefined;
+
+  /** The updated viewers go back to the caller and to every TV; promotions carry the "moved up" messages. */
+  async function viewersReply(code: string, viewers: Viewers, promotions: string[]): Promise<HttpResult> {
+    const ids = await store.connections(code);
+    if (ids.length) {
+      try {
+        const gone = await deps.push(ids, { type: 'viewers', viewers, promotions });
+        await Promise.all(gone.map(id => store.removeConnection(id)));
+      } catch { /* the caller still gets the state */ }
+    }
+    return reply(200, { viewers, promotions });
+  }
+
+  const replaceViewer = (viewers: Viewers, v: Viewer): Viewers => viewers.map(x => x.name === v.name ? v : x);
+
+  async function createSession(code: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
+    if (!Array.isArray(raw.present) || raw.present.length === 0) return fail(400, 'Pick who is watching');
+    let present: string[] = [];
+    for (const n of raw.present) {
+      const viewer = findViewer(viewers, n);
+      if (!viewer) return fail(400, 'Pick who you are first');
+      const r = pickViewer(present, viewer.name);
+      if (!r.ok) return fail(400, r.message);
+      present = r.present;
+    }
+    const sessionId = randomUUID();
+    await store.putSession(code, sessionId, { present });
+    return reply(200, { sessionId, viewers: present.map(n => viewers.find(v => v.name === n)!) });
+  }
+
+  async function shown(code: string, sessionId: string, viewers: Viewers, raw: Record<string, unknown>): Promise<HttpResult> {
+    const momentId = typeof raw.momentId === 'string' ? raw.momentId.trim() : '';
+    if (!momentId || momentId.length > MAX_MOMENT_ID_CHARS) return fail(400, 'Missing moment');
+    const concepts = parseConcepts(raw.concepts);
+    if (!concepts || concepts.length === 0) return fail(400, 'Unknown concept');
+    const layers = raw.layerByViewer && typeof raw.layerByViewer === 'object' && !Array.isArray(raw.layerByViewer) ? raw.layerByViewer as Record<string, unknown> : {};
+    const session = await store.getSession(code, sessionId);
+    if (!session) return fail(404, 'Session expired');
+    let current = viewers; const promotions: string[] = [];
+    for (const name of session.present) {
+      const viewer = viewers.find(v => v.name === name);
+      if (!viewer) continue; // removed mid-session
+      const layer = Object.entries(layers).find(([k]) => k.toLowerCase() === name.toLowerCase())?.[1];
+      if (layer !== 'basic') continue;
+      if (!await store.claimShown(code, sessionId, momentId, name)) continue; // a second TV or a stale tab: already counted
+      const r = recordBasicShown(viewer, concepts);
+      await store.putViewer(code, r.viewer);
+      current = replaceViewer(current, r.viewer);
+      if (r.promotion) promotions.push(r.promotion);
+    }
+    await store.putSession(code, sessionId, { ...session, momentId, concepts });
+    return viewersReply(code, current, promotions);
+  }
+
+  async function gotIt(code: string, viewers: Viewers, name: string, raw: Record<string, unknown>): Promise<HttpResult> {
+    const viewer = findViewer(viewers, name);
+    if (!viewer) return fail(404, 'Unknown viewer');
+    const concepts = parseConcepts(raw.concepts);
+    if (!concepts || concepts.length === 0) return fail(400, 'Unknown concept');
+    let v = viewer; const promotions: string[] = [];
+    for (const c of concepts) { const r = markGotIt(v, c); v = r.viewer; if (r.promotion) promotions.push(r.promotion); }
+    await store.putViewer(code, v);
+    return viewersReply(code, replaceViewer(viewers, v), promotions);
+  }
+
+  async function undo(code: string, viewers: Viewers, name: string): Promise<HttpResult> {
+    const viewer = findViewer(viewers, name);
+    if (!viewer) return fail(404, 'Unknown viewer');
+    const v = undoPromotion(viewer);
+    await store.putViewer(code, v);
+    return viewersReply(code, replaceViewer(viewers, v), []);
+  }
+
+  /** R-04-c: a question that names a concept of the moment on screen resets that concept's view count for the asker. */
+  async function noteAsked(code: string, viewers: Viewers, raw: Record<string, unknown>, text: string) {
+    if (typeof raw.sessionId !== 'string') return;
+    const asker = findViewer(viewers, raw.viewerName);
+    const session = await store.getSession(code, raw.sessionId);
+    if (!asker || !session?.concepts) return;
+    const lower = text.toLowerCase();
+    const named = session.concepts.filter(c => lower.includes(c));
+    if (!named.length) return;
+    await store.putViewer(code, named.reduce((v, c) => recordAsked(v, c as Concept), asker));
+  }
+
+  async function deliverAndNote(code: string, viewers: Viewers, raw: Record<string, unknown>, route: Route, text: string) {
+    const res = await deliver(code, route, text);
+    if (res.statusCode === 200 && (JSON.parse(res.body) as { ok?: boolean }).ok === true) await noteAsked(code, viewers, raw, text).catch(() => undefined);
+    return res;
   }
 
   return async (event: HttpEvent): Promise<HttpResult> => {
@@ -128,6 +227,14 @@ export function makeHttpHandler(deps: Deps) {
     }
     if (parts.length === 3 && parts[2] === 'questions' && method === 'POST') return question(code, viewers, raw);
     if (parts.length === 4 && parts[2] === 'questions' && parts[3] === 'audio' && method === 'POST') return audioQuestion(code, viewers, raw);
+    if (parts[2] === 'sessions' && method === 'POST') {
+      if (parts.length === 3) return createSession(code, viewers, raw);
+      if (parts.length === 5 && parts[4] === 'shown') return shown(code, parts[3]!, viewers, raw);
+    }
+    if (parts[2] === 'viewers' && parts.length === 5 && method === 'POST') {
+      if (parts[4] === 'got-it') return gotIt(code, viewers, parts[3]!, raw);
+      if (parts[4] === 'undo-promotion') return undo(code, viewers, parts[3]!);
+    }
     return fail(404, 'Not found');
   };
 }

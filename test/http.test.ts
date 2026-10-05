@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { newViewer, type Viewer } from '../src/core/index.js';
+import { newViewer, PROMOTE_AT, type Viewer } from '../src/core/index.js';
 import { makeHttpHandler, type HttpEvent } from '../src/api/http.js';
-import type { Store } from '../src/api/store.js';
+import type { Session, Store } from '../src/api/store.js';
 import { wav } from './wav.js';
 
 const FALLBACK = "I couldn't answer that right now - try again in a moment.";
@@ -13,17 +13,26 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
   let globalRate = globalStart;
   let dayRate = dayStart;
   const removed: string[] = [];
+  const sessions = new Map<string, Session>();
+  const claims = new Set<string>();
   const store: Store = {
     async createHousehold() { households.set('ABC234', []); return { householdId: 'hh-1', code: 'ABC234' }; },
     async getViewers(code) { return households.get(code); },
-    async putViewer(code, v) { households.set(code, [...(households.get(code) ?? []), v]); },
+    async putViewer(code, v) {
+      const list = households.get(code) ?? [];
+      const i = list.findIndex(x => x.name.toLowerCase() === v.name.toLowerCase());
+      households.set(code, i < 0 ? [...list, v] : list.map((x, j) => j === i ? v : x));
+    },
+    async getSession(code, id) { return sessions.get(`${code}#${id}`); },
+    async putSession(code, id, session) { sessions.set(`${code}#${id}`, session); },
+    async claimShown(code, sid, mid, viewer) { const k = `${code}#${sid}#${mid}#${viewer}`; if (claims.has(k)) return false; claims.add(k); return true; },
     async addConnection(code, id) { conns.set(code, [...(conns.get(code) ?? []), id]); },
     async removeConnection(id) { removed.push(id); },
     async connections(code) { return conns.get(code) ?? []; },
     async countHousehold() { return ++rate; },
     async countGlobal() { return { hour: ++globalRate, day: ++dayRate }; },
   };
-  return { store, households, conns, removed, counters: () => ({ rate, globalRate, dayRate }) };
+  return { store, households, conns, sessions, removed, counters: () => ({ rate, globalRate, dayRate }) };
 }
 
 const ev = (method: string, path: string, body?: unknown): HttpEvent => ({
@@ -191,6 +200,115 @@ describe('http handler', () => {
   it('unknown route is 404', async () => {
     expect((await handler()(ev('GET', '/nope'))).statusCode).toBe(404);
   });
+  describe('learning state', () => {
+    const post = (path: string, body?: unknown) => handler()(ev('POST', `/households/ABC234${path}`, body));
+    const startSession = async (present: string[]) => json(await post('/sessions', { present })).sessionId as string;
+    const leo = () => f.households.get('ABC234')!.find(v => v.name === 'Leo')!;
+
+    it('creates a session for known viewers (any case) and returns them', async () => {
+      const r = await post('/sessions', { present: ['leo'] });
+      expect(r.statusCode).toBe(200);
+      expect(json(r).sessionId).toMatch(/[0-9a-f-]{36}/);
+      expect(json(r).viewers.map((v: Viewer) => v.name)).toEqual(['Leo']);
+    });
+
+    it('refuses an unknown viewer, an empty list and a fourth viewer (R-09)', async () => {
+      for (const n of ['Mia', 'Zed', 'Kim']) await post('/viewers', { name: n, level: 'fan' });
+      expect((await post('/sessions', { present: ['Nobody'] })).statusCode).toBe(400);
+      expect((await post('/sessions', { present: [] })).statusCode).toBe(400);
+      expect((await post('/sessions', {})).statusCode).toBe(400);
+      const four = await post('/sessions', { present: ['Leo', 'Mia', 'Zed', 'Kim'] });
+      expect(four.statusCode).toBe(400);
+      expect(json(four).message).toBe('Up to 3 viewers at a time');
+      expect((await post('/sessions', { present: ['Leo', 'leo', 'Mia', 'Zed'] })).statusCode).toBe(200);
+    });
+
+    it('shown counts a basic view once per moment, however often it is sent (two TVs)', async () => {
+      const sessionId = await startSession(['Leo']);
+      const body = { momentId: 'm1', concepts: ['offside'], layerByViewer: { Leo: 'basic' } };
+      const a = await post(`/sessions/${sessionId}/shown`, body);
+      const b = await post(`/sessions/${sessionId}/shown`, body);
+      expect(a.statusCode).toBe(200);
+      expect(json(a)).toMatchObject({ promotions: [] });
+      expect(json(b).viewers[0].seenBasic).toEqual({ offside: 1 });
+      expect(leo().seenBasic).toEqual({ offside: 1 });
+      await post(`/sessions/${sessionId}/shown`, { ...body, momentId: 'm2' });
+      expect(leo().understood).toEqual(['offside']); // second view makes it understood (R-04)
+    });
+
+    it('shown ignores viewers whose layer was not basic', async () => {
+      const sessionId = await startSession(['Leo']);
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], layerByViewer: { Leo: 'intermediate' } });
+      expect(leo().seenBasic).toEqual({});
+    });
+
+    it('shown pushes viewers and promotions to every TV', async () => {
+      f.households.set('ABC234', [{ ...newViewer('Leo', 'beginner'), understood: ['goal', 'shot', 'save', 'assist'] }]);
+      const sessionId = await startSession(['Leo']);
+      const body = { concepts: ['offside'], layerByViewer: { Leo: 'basic' } };
+      await post(`/sessions/${sessionId}/shown`, { ...body, momentId: 'm1' });
+      const r = await post(`/sessions/${sessionId}/shown`, { ...body, momentId: 'm2' });
+      expect(json(r).promotions).toEqual(['Leo moved up to Fan']);
+      expect(leo().level).toBe('fan');
+      const last = pushed[pushed.length - 1]!;
+      expect(last.ids).toEqual(['c1', 'c2']);
+      expect(last.payload).toMatchObject({ type: 'viewers', promotions: ['Leo moved up to Fan'] });
+    });
+
+    it('shown: bad input, unknown or expired session', async () => {
+      const sessionId = await startSession(['Leo']);
+      expect((await post(`/sessions/${sessionId}/shown`, { concepts: ['offside'], layerByViewer: {} })).statusCode).toBe(400);
+      expect((await post(`/sessions/${sessionId}/shown`, { momentId: 'm', concepts: ['bogus'], layerByViewer: {} })).statusCode).toBe(400);
+      const gone = await post('/sessions/nope/shown', { momentId: 'm', concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
+      expect(gone.statusCode).toBe(404);
+      expect(json(gone).message).toBe('Session expired');
+    });
+
+    it('shown skips a viewer removed mid-session', async () => {
+      const sessionId = await startSession(['Leo']);
+      f.households.set('ABC234', [newViewer('Mia', 'beginner')]);
+      const r = await post(`/sessions/${sessionId}/shown`, { momentId: 'm', concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
+      expect(r.statusCode).toBe(200);
+      expect(json(r).viewers.map((v: Viewer) => v.name)).toEqual(['Mia']);
+    });
+
+    it('got-it marks understood, promotes at 5, and undo-promotion reverses it for good', async () => {
+      const concepts = ['goal', 'shot', 'save', 'assist', 'offside'];
+      expect(concepts).toHaveLength(PROMOTE_AT);
+      const r = await post('/viewers/leo/got-it', { concepts });
+      expect(json(r).promotions).toEqual(['Leo moved up to Fan']);
+      expect(leo()).toMatchObject({ level: 'fan', promotedAutomatically: true });
+      const u = await post('/viewers/Leo/undo-promotion');
+      expect(json(u).viewers[0]).toMatchObject({ level: 'beginner', autoPromotionDisabled: true });
+      await post('/viewers/Leo/got-it', { concepts: ['red card'] });
+      expect(leo().level).toBe('beginner');
+    });
+
+    it('got-it and undo: unknown viewer is 404, bad concept is 400, unknown household is 404', async () => {
+      expect((await post('/viewers/Nobody/got-it', { concepts: ['goal'] })).statusCode).toBe(404);
+      expect((await post('/viewers/Nobody/undo-promotion')).statusCode).toBe(404);
+      expect((await post('/viewers/Leo/got-it', { concepts: ['bogus'] })).statusCode).toBe(400);
+      expect((await post('/viewers/Leo/got-it', {})).statusCode).toBe(400);
+      expect((await handler()(ev('POST', '/households/ZZZZZZ/sessions', { present: ['Leo'] }))).statusCode).toBe(404);
+      expect((await handler()(ev('POST', '/households/ZZZZZZ/viewers/Leo/got-it', { concepts: ['goal'] }))).statusCode).toBe(404);
+    });
+
+    it('a question naming a concept of the current moment resets its view count (R-04-c)', async () => {
+      const sessionId = await startSession(['Leo']);
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
+      expect(leo().seenBasic).toEqual({ offside: 1 });
+      await post('/questions', { viewerName: 'Leo', question: 'What is offside?', sessionId });
+      expect(leo().seenBasic).toEqual({ offside: 0 });
+    });
+
+    it('a question about something else, or without a session, leaves the counts alone', async () => {
+      const sessionId = await startSession(['Leo']);
+      await post(`/sessions/${sessionId}/shown`, { momentId: 'm1', concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
+      await post('/questions', { viewerName: 'Leo', question: 'Who is the referee?', sessionId });
+      await post('/questions', { viewerName: 'Leo', question: 'What is offside?' });
+      expect(leo().seenBasic).toEqual({ offside: 1 });
+    });
+  });
 });
 
 describe('audio question route', () => {
@@ -263,4 +381,5 @@ describe('audio question route', () => {
     f = fakeStore(30); f.households.set('ABC234', [newViewer('Leo', 'beginner')]);
     expect((await handler()(post({ viewerName: 'Leo', wavBase64: wavB64() }))).statusCode).toBe(429);
   });
+
 });

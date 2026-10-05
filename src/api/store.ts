@@ -6,6 +6,10 @@ import type { Viewer } from '../core/index.js';
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 export const HOUSEHOLD_TTL_S = 7 * 24 * 3600;
 export const CONNECTION_TTL_S = 24 * 3600;
+export const SESSION_TTL_S = 24 * 3600;
+
+/** A viewing session: who is in the room and the moment the TV shows now (so a question can reset that concept's view count, R-04-c). */
+export interface Session { present: string[]; momentId?: string; concepts?: string[] }
 
 /** What the handlers need from storage; tests pass a fake. */
 export interface Store {
@@ -13,6 +17,10 @@ export interface Store {
   /** Undefined when the household does not exist. */
   getViewers(code: string): Promise<Viewer[] | undefined>;
   putViewer(code: string, v: Viewer): Promise<void>;
+  getSession(code: string, sessionId: string): Promise<Session | undefined>;
+  putSession(code: string, sessionId: string, s: Session): Promise<void>;
+  /** True the first time (session, moment, viewer) is claimed, false on every repeat: the idempotency key for "shown". */
+  claimShown(code: string, sessionId: string, momentId: string, viewer: string): Promise<boolean>;
   addConnection(code: string, connectionId: string): Promise<void>;
   removeConnection(connectionId: string): Promise<void>;
   connections(code: string): Promise<string[]>;
@@ -63,6 +71,25 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
     },
     async putViewer(code, v) {
       await doc.send(new PutCommand({ TableName: table, Item: { pk: hh(code), sk: `VIEWER#${v.name.toLowerCase()}`, viewer: v, ttl: now() + HOUSEHOLD_TTL_S } }));
+    },
+    async getSession(code, sessionId) {
+      const r = await doc.send(new GetCommand({ TableName: table, Key: { pk: hh(code), sk: `SESSION#${sessionId}` } }));
+      return r.Item?.session as Session | undefined;
+    },
+    async putSession(code, sessionId, session) {
+      await doc.send(new PutCommand({ TableName: table, Item: { pk: hh(code), sk: `SESSION#${sessionId}`, session, ttl: now() + SESSION_TTL_S } }));
+    },
+    async claimShown(code, sessionId, momentId, viewer) {
+      try {
+        await doc.send(new PutCommand({
+          TableName: table, ConditionExpression: 'attribute_not_exists(pk)',
+          Item: { pk: hh(code), sk: `SHOWN#${sessionId}#${momentId}#${viewer.toLowerCase()}`, ttl: now() + SESSION_TTL_S },
+        }));
+        return true;
+      } catch (err) {
+        if ((err as { name?: string }).name === 'ConditionalCheckFailedException') return false;
+        throw err;
+      }
     },
     async addConnection(code, connectionId) {
       const ttl = now() + CONNECTION_TTL_S;

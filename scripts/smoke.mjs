@@ -55,5 +55,24 @@ check(anon.status === 400 && anon.data.message === 'Pick who you are first', 'qu
 const stranger = await call('POST', `/households/${code}/questions`, { viewerName: 'Nobody', question: 'What is offside?' });
 check(stranger.status === 400 && stranger.data.message === 'Pick who you are first', 'question from a name not in the household is refused', stranger.data.message);
 
+// Learning state through the domain core.
+const sess = await call('POST', `/households/${code}/sessions`, { present: ['Leo'] });
+check(sess.status === 200 && !!sess.data.sessionId && sess.data.viewers?.[0]?.name === 'Leo', 'create session', sess.data.sessionId);
+const sid = sess.data.sessionId;
+const shownBody = (momentId) => ({ momentId, concepts: ['offside'], layerByViewer: { Leo: 'basic' } });
+await call('POST', `/households/${code}/sessions/${sid}/shown`, shownBody('m1'));
+const again = await call('POST', `/households/${code}/sessions/${sid}/shown`, shownBody('m1'));
+check(again.status === 200 && again.data.viewers[0].seenBasic.offside === 1, 'shown twice for the same moment counts one view', JSON.stringify(again.data.viewers[0].seenBasic));
+const second = await call('POST', `/households/${code}/sessions/${sid}/shown`, shownBody('m2'));
+check(second.data.viewers[0].understood.includes('offside'), 'second moment makes offside understood (R-04)');
+const gi = await call('POST', `/households/${code}/viewers/leo/got-it`, { concepts: ['goal', 'shot', 'save', 'assist'] });
+check(gi.status === 200 && gi.data.promotions[0] === 'Leo moved up to Fan' && gi.data.viewers[0].level === 'fan', 'got-it to 5 understood promotes to Fan', JSON.stringify(gi.data.promotions));
+const un = await call('POST', `/households/${code}/viewers/Leo/undo-promotion`);
+check(un.status === 200 && un.data.viewers[0].level === 'beginner' && un.data.viewers[0].autoPromotionDisabled === true, 'undo-promotion returns Leo to beginner for good');
+const four = await call('POST', `/households/${code}/sessions`, { present: ['Leo', 'A', 'B', 'C'] });
+check(four.status === 400, 'unknown/too many viewers in a session are refused', four.data.message);
+const nov = await call('POST', `/households/${code}/viewers/Nobody/got-it`, { concepts: ['goal'] });
+check(nov.status === 404, 'got-it for an unknown viewer is 404', nov.data.message);
+
 console.log(failed ? '\nSMOKE FAILED' : '\nSMOKE OK');
 process.exit(failed ? 1 : 0);
