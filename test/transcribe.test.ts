@@ -16,11 +16,21 @@ describe('parseWav', () => {
     const r = parseWav(wav(16000 * 8));
     expect(r.ok && r.pcm.byteLength).toBe(16000 * 8 * 2);
   });
+  it('skips a LIST chunk before data', () => {
+    const r = parseWav(wav(16000, 16000, 1, { listChunk: true }));
+    expect(r.ok && r.pcm.byteLength).toBe(32000);
+  });
+  it('rejects under 0.1 s', () => {
+    expect(parseWav(wav(1599)).ok).toBe(false);
+    expect(parseWav(wav(1600)).ok).toBe(true);
+  });
   it('rejects over 8 s, wrong rate, stereo, junk and over 300 KB', () => {
     expect(parseWav(wav(16000 * 8 + 2)).ok).toBe(false);
-    expect(parseWav(wav(1000, 44100)).ok).toBe(false);
-    expect(parseWav(wav(1000, 16000, 2)).ok).toBe(false);
+    expect(parseWav(wav(16000, 44100)).ok).toBe(false);
+    expect(parseWav(wav(16000, 16000, 2)).ok).toBe(false);
     expect(parseWav(new Uint8Array(100)).ok).toBe(false);
+    expect(parseWav(wav(16000, 16000, 1, { format: 3, bits: 32 })).ok).toBe(false); // float
+    expect(parseWav(wav(16000, 16000, 1, { bits: 8 })).ok).toBe(false);
     expect(parseWav(new Uint8Array(300 * 1024 + 1)).ok).toBe(false);
   });
 });

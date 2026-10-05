@@ -197,7 +197,21 @@ describe('audio question route', () => {
   });
   it('a Transcribe failure is also not-ok', async () => {
     const r = await handler(async () => { throw new Error('boom'); })(post({ viewerName: 'Leo', wavBase64: wavB64() }));
-    expect(json(r).ok).toBe(false);
+    expect(json(r)).toEqual({ ok: false, message: "I didn't catch that - try again or type it." });
+    expect(r.body).not.toContain('boom');
+  });
+  it('trims a transcript over 300 chars before asking', async () => {
+    heard = 'a'.repeat(400);
+    await handler()(post({ viewerName: 'Leo', wavBase64: wavB64() }));
+    expect(asked[0]).toHaveLength(300);
+  });
+  it('silence (under 0.1 s) is rejected before caps and Transcribe', async () => {
+    let called = false;
+    f = fakeStore(); f.households.set('ABC234', [newViewer('Leo', 'beginner')]);
+    let counted = 0; const orig = f.store.countQuestion; f.store.countQuestion = async c => { counted++; return orig(c); };
+    const r = await handler(async () => { called = true; return 'x'; })(post({ viewerName: 'Leo', wavBase64: wavB64(100) }));
+    expect(r.statusCode).toBe(400);
+    expect([called, counted]).toEqual([false, 0]);
   });
   it('needs a viewer and does not transcribe without one', async () => {
     let called = false;

@@ -70,15 +70,15 @@ function encodeWav(samples: Float32Array): Uint8Array {
 
 /** Decode whatever the browser recorded (AAC/mp4 or webm), downmix and resample to 16 kHz mono, write PCM16 WAV. */
 async function toWav(blob: Blob): Promise<Uint8Array> {
-  const ctx = new AudioContext();
-  try {
-    const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
+  {
+    // An OfflineAudioContext decodes without needing a user gesture to be unlocked.
+    const decoded = await new OfflineAudioContext(1, 1, TARGET_RATE).decodeAudioData(await blob.arrayBuffer());
     const frames = Math.max(1, Math.ceil(Math.min(decoded.duration, 8) * TARGET_RATE));
     const off = new OfflineAudioContext(1, frames, TARGET_RATE); // one channel: the graph downmixes
     const src = off.createBufferSource();
     src.buffer = decoded; src.connect(off.destination); src.start();
     return encodeWav((await off.startRendering()).getChannelData(0));
-  } finally { void ctx.close(); }
+  }
 }
 
 const toBase64 = (b: Uint8Array) => { let s = ''; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode(...b.subarray(i, i + 0x8000)); return btoa(s); };
@@ -95,12 +95,15 @@ async function sendAudio(blob: Blob) {
 }
 
 let recorder: MediaRecorder | undefined;
+let held = false;
 let stopTimer: ReturnType<typeof setTimeout> | undefined;
 
 async function startTalk() {
-  if (recorder) return;
+  if (held) return;
+  held = true;
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!held) { stream.getTracks().forEach(t => t.stop()); return; } // let go before the mic was ready
     const type = ['audio/mp4', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t));
     const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
     const chunks: Blob[] = [];
@@ -108,6 +111,7 @@ async function startTalk() {
     rec.onstop = () => {
       stream.getTracks().forEach(t => t.stop());
       recorder = undefined;
+      held = false;
       $('talk').textContent = 'Hold to ask';
       if (chunks.length) void sendAudio(new Blob(chunks, { type: rec.mimeType }));
     };
@@ -116,10 +120,11 @@ async function startTalk() {
     text(msg, 'Listening...');
     $('talk').textContent = 'Listening - let go to send';
     stopTimer = setTimeout(stopTalk, MAX_RECORD_MS);
-  } catch { text(msg, 'Microphone not available - type your question instead.'); }
+  } catch { held = false; text(msg, 'Microphone not available - type your question instead.'); }
 }
 
 function stopTalk() {
+  held = false;
   clearTimeout(stopTimer);
   if (recorder && recorder.state === 'recording') recorder.stop();
 }

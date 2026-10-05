@@ -11,6 +11,7 @@ export type Transcriber = (pcm: Uint8Array) => Promise<string>;
 export type WavResult = { ok: true; pcm: Uint8Array } | { ok: false; message: string };
 
 const NOT_AUDIO = 'That recording is not valid audio';
+const TOO_SHORT = 'That recording was too short - hold the button while you ask';
 const TOO_LONG = 'That recording is too long - keep it under 8 seconds';
 
 /** Validates a canonical PCM16 mono 16 kHz WAV (the phone writes exactly this) and returns its samples. */
@@ -34,6 +35,7 @@ export function parseWav(wav: Uint8Array): WavResult {
       if (!fmtOk) return bad(NOT_AUDIO);
       const start = o + 8;
       const len = Math.min(size, wav.byteLength - start) & ~1;
+      if (len < MIN_PCM_BYTES) return bad(TOO_SHORT);
       if (len > MAX_AUDIO_SECONDS * SAMPLE_RATE * 2) return bad(TOO_LONG);
       return { ok: true, pcm: wav.subarray(start, start + len) };
     }
@@ -42,7 +44,10 @@ export function parseWav(wav: Uint8Array): WavResult {
   return bad(NOT_AUDIO);
 }
 
-export interface StreamClient { send(command: unknown): Promise<unknown> }
+export const TRANSCRIBE_TIMEOUT_MS = 6000;
+export const MIN_PCM_BYTES = 3200; // 0.1 s
+
+export interface StreamClient { send(command: unknown, options?: { abortSignal?: AbortSignal }): Promise<unknown> }
 
 type Seg = { IsPartial?: boolean; Alternatives?: { Transcript?: string }[] };
 type TranscribeOutput = { TranscriptResultStream?: AsyncIterable<{ TranscriptEvent?: { Transcript?: { Results?: Seg[] } } }> };
@@ -56,7 +61,7 @@ export function makeTranscriber(client: StreamClient = new TranscribeStreamingCl
     }
     const out = await client.send(new StartStreamTranscriptionCommand({
       LanguageCode: 'en-US', MediaSampleRateHertz: SAMPLE_RATE, MediaEncoding: 'pcm', AudioStream: audio(),
-    })) as TranscribeOutput;
+    }), { abortSignal: AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS) }) as TranscribeOutput;
     const parts: string[] = [];
     for await (const ev of out.TranscriptResultStream ?? []) {
       for (const r of ev.TranscriptEvent?.Transcript?.Results ?? []) {
