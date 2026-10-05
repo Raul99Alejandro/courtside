@@ -10,6 +10,12 @@ export const LEVEL_WORDS = ['ties', 'levels', 'equalises', 'equalizes'];
 const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const BANNED = BANNED_TERMS.map(t => new RegExp(`\\b${escapeRe(t).replace(/ /g, '\\s*')}\\b`, 'i'));
 const LEVEL = new RegExp(`\\b(${LEVEL_WORDS.join('|')})\\b`, 'i');
+/** Words that are wrong for soccer: goals are not points, and no American-football terms. */
+export const SOCCER_BANNED: { re: RegExp; why: string }[] = [
+  { re: /\b(points?)\b/i, why: 'says "point"; goals are goals, not points' },
+  { re: /\b(touchdowns?|quarterbacks?|field goals?|end zone|first down)\b/i, why: 'uses an American-football term' },
+];
+const GAME_WORD = /\bgames?\b/i;
 const COORDS = /\(\s*\d+(\.\d+)?\s*,\s*\d/;
 
 /** The score named in an effect such as "puts Argentina ahead 3-2", or undefined. */
@@ -31,6 +37,13 @@ export function checkCard(text: string, layer: Layer, m: Partial<Pick<Moment, 'e
   if (t.includes('—')) problems.push('contains an em dash; use a comma or a full stop');
   if (/\(\d+\s*words?\)/i.test(t)) problems.push('contains a word count; do not append word counts');
   for (const b of BANNED) if (b.test(t)) problems.push(`banned term ${b}`);
+  for (const b of SOCCER_BANNED) if (b.re.test(t)) problems.push(b.why);
+  if (layer === 'basic' && GAME_WORD.test(t)) problems.push('says "game"; say "match" in basic lines');
+  if (layer === 'tactical') {
+    // a score such as 3-2 counts as one number, and a year such as 2022 is not a stat
+    const nums = t.replace(/\d+\s*[-\u2013]\s*\d+/g, '1').replace(/\b(19|20)\d\d\b/g, '').match(/\d+(\.\d+)?/g)?.length ?? 0;
+    if (nums > 2) problems.push(`tactical line has ${nums} numbers including the minute; use at most two in total and put the rest in words`);
+  }
   const score = scoreInEffect(m.effect);
   if (score && layer !== 'basic') {
     const [a, b] = score.split('-');

@@ -32,7 +32,7 @@ export async function generateCard(m: Moment, converse: Converse, matchTitle: st
     if (!problems.length) {
       const verdicts: [string, Promise<Verdict>, string][] = [
         ['basic', judgeBasic(parsed.basic!, m, converse, matchTitle), 'does not define every concept in plain words; define each concept in a short clause, then say what happened'],
-        ...LAYER_ORDER.map((l): [string, Promise<Verdict>, string] => [l, judgeFacts(parsed[l]!, m, converse, matchTitle), 'states something not in the facts; remove every claim about tactics, runs, shapes, history or time that is not given']),
+        ...LAYER_ORDER.map((l): [string, Promise<Verdict>, string] => [l, judgeFacts(parsed[l]!, m, converse, matchTitle), l === 'tactical' ? 'states a number or fact that is not given, or a conclusion that does not follow directly from the computed facts; use only given numbers and draw only an obvious conclusion' : 'states something not in the facts; remove every claim about tactics, runs, shapes, history or time that is not given']),
       ];
       for (const [layer, pending, reason] of verdicts) {
         const v = await pending;

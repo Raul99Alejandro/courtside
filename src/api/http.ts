@@ -109,9 +109,9 @@ export function makeHttpHandler(deps: Deps) {
   }
 
   async function pushViewers(code: string, viewers: Viewers, promotions: Promotion[]) {
-    const ids = await store.connections(code);
-    if (!ids.length) return;
     try {
+      const ids = await store.connections(code);
+      if (!ids.length) return;
       const gone = await deps.push(ids, { type: 'viewers', viewers, promotions });
       await Promise.all(gone.map(id => store.removeConnection(id)));
     } catch { /* the caller still gets the state */ }

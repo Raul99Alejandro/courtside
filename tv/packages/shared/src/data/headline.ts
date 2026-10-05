@@ -1,4 +1,4 @@
-import type { Moment } from '@courtside/core';
+import { outcomeLabel, type Moment } from '@courtside/core';
 import { shortName } from './names';
 
 /** The player's usual short name, using the card text as a hint. */
@@ -26,7 +26,7 @@ export function momentTitle(m: Moment, card?: Record<string, string>): string {
 
 /** The line that follows the title: the effect when there is one. */
 export function momentDetail(m: Moment): string {
-  return m.effect ?? m.outcome ?? m.phase;
+  return m.effect ?? (m.outcome ? outcomeLabel(m.outcome) : m.phase);
 }
 
 /** "Leo", "Leo and Ana", "Leo, Ana and Raul". */

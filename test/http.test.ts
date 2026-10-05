@@ -139,6 +139,15 @@ describe('http handler', () => {
     expect(f.removed).toEqual(['c2']);
   });
 
+  it('a push or connections failure never turns a saved viewer into a 500', async () => {
+    const boom = { ...f.store, connections: async () => { throw new Error('ddb down'); } };
+    const r = await makeHttpHandler({ store: boom, answer: async () => 'ok', push: async () => [] })(ev('POST', '/households/ABC234/viewers', { name: 'Ana', level: 'fan' }));
+    expect(r.statusCode).toBe(200);
+    expect(json(r).viewers).toHaveLength(2);
+    const r2 = await makeHttpHandler({ store: f.store, answer: async () => 'ok', push: async () => { throw new Error('gone'); } })(ev('POST', '/households/ABC234/viewers', { name: 'Bo', level: 'fan' }));
+    expect(r2.statusCode).toBe(200);
+  });
+
   it('answer failure is a friendly 200 and nothing is pushed', async () => {
     answerFn = async () => { throw new Error('bedrock down'); };
     const r = await handler()(ev('POST', '/households/ABC234/questions', { viewerName: 'Leo', question: 'What is offside?' }));
