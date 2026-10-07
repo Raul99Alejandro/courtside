@@ -1,4 +1,4 @@
-import { checkCard, type Layer, type Moment } from '../core/index.js';
+import { checkCard, DEFINITIONS, type Concept, type Layer, type Moment } from '../core/index.js';
 import { converse as realConverse, LIVE_MODELS, type Converse } from './bedrock.js';
 import { momentFacts } from './prompt.js';
 
@@ -24,11 +24,17 @@ export function reasonCode(problem: string): string {
   return 'other';
 }
 
+/** Canonical definitions for the moment's concepts, or all of them when the moment has none (a rule question with nothing on screen). */
+export function definitionsFor(moment?: Moment): string {
+  const concepts = (moment?.concepts?.length ? moment.concepts : Object.keys(DEFINITIONS)) as Concept[];
+  return concepts.map(c => DEFINITIONS[c]).join(' ');
+}
+
 export async function answerQuestion(
   input: { question: string; layer: Layer; moment?: Moment; viewerName: string; /** epoch ms; no retry unless at least RETRY_MIN_MS remain */ deadlineAt?: number },
   deps: { converse: Converse } = { converse: realConverse },
 ): Promise<string> {
-  const system = `You answer a soccer question spoken aloud on a TV to ${input.viewerName}. ${STYLE[input.layer]} Answer in at most 2 short sentences (under 45 words). Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. If the current moment is given, use only its facts for anything about it. Never use the em dash character; use commas or full stops.${input.layer === 'basic' ? " Never write 'game'; say 'match'." : ''}`;
+  const system = `You answer a soccer question spoken aloud on a TV to ${input.viewerName}. ${STYLE[input.layer]} Answer in at most 2 short sentences (under 45 words). Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. If the current moment is given, use only its facts for anything about it. Never use the em dash character; use commas or full stops. Answer the question directly first, then explain the idea. Canonical definitions, never contradict them: ${definitionsFor(input.moment)}${input.layer === 'basic' ? " Never write 'game'; say 'match'." : ''}`;
   const user = (input.moment ? `Current moment: ${JSON.stringify(momentFacts(input.moment))}
 
 ` : '') + `Question: ${input.question}`;

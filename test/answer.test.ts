@@ -61,3 +61,14 @@ it('does not retry when less than 2.5 s remain', async () => {
   expect(out).toBe(FALLBACK_ANSWER);
   expect(calls).toBe(1);
 });
+it('puts only the moment concepts definitions in the live system prompt, or all of them with no moment', async () => {
+  const { DEFINITIONS } = await import('../src/core/index.js');
+  let system = '';
+  const converse = async (_m: string[], s: string) => { system = s; return { text: 'Offside is being ahead.', modelId: 'f' }; };
+  await answerQuestion(input, { converse });
+  for (const d of Object.values(DEFINITIONS)) expect(system).toContain(d);
+  expect(system).toContain('Answer the question directly first, then explain the idea');
+  await answerQuestion({ ...input, moment: { concepts: ['goal'] } as never }, { converse });
+  expect(system).toContain(DEFINITIONS.goal);
+  expect(system).not.toContain(DEFINITIONS.offside);
+});

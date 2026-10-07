@@ -74,3 +74,8 @@ it('judge basic question requires consistency with the definition, via a fake co
   expect(seen[0]).toContain('is consistent with this definition');
   expect(seen[0]).toContain('second-last opponent');
 });
+it('the judge asks Nova Pro first, then Nova 2 Lite', async () => {
+  const ids: string[][] = [];
+  await judgeFacts('s', m, async (i) => { ids.push(i); return { text: 'Verdict: yes', modelId: 'f' }; });
+  expect(ids[0]).toEqual(['us.amazon.nova-pro-v1:0', 'us.amazon.nova-2-lite-v1:0']);
+});
