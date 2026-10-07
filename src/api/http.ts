@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { addViewer, byCreation, layerFor, markGotIt, newViewer, nextOrder, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Viewer } from '../core/index.js';
+import { addViewer, byCreation, layerFor, markGotIt, newViewer, nextOrder, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Moment, type Viewer } from '../core/index.js';
 import { answerQuestion, FALLBACK_ANSWER } from '../explain/answer.js';
+import { momentById } from '../explain/moments.js';
 import { postToConnections, type Push } from './push.js';
 import { dynamoStore, type Store } from './store.js';
 import { DIDNT_CATCH, makeTranscriber, MAX_WAV_BYTES, parseWav, type Transcriber } from './transcribe.js';
@@ -18,7 +19,7 @@ export interface Promotion { name: string; message: string }
 
 export interface Deps {
   store: Store;
-  answer: (i: { question: string; layer: Layer; viewerName: string }) => Promise<string>;
+  answer: (i: { question: string; layer: Layer; viewerName: string; moment?: Moment }) => Promise<string>;
   push: Push;
   transcribe?: Transcriber;
 }
@@ -66,9 +67,16 @@ export function makeHttpHandler(deps: Deps) {
     return route;
   }
 
-  async function deliver(code: string, route: Route, text: string): Promise<HttpResult> {
+  /** The moment the TV last reported for this session, if it is one we know. */
+  async function currentMoment(code: string, sessionId: unknown): Promise<Moment | undefined> {
+    if (typeof sessionId !== 'string' || !sessionId) return undefined;
+    try { return momentById((await store.getSession(code, sessionId))?.momentId); } catch { return undefined; }
+  }
+
+  async function deliver(code: string, route: Route, text: string, sessionId?: unknown): Promise<HttpResult> {
     let answer: string;
-    try { answer = await deps.answer({ question: text, layer: route.layer, viewerName: route.label }); }
+    const moment = await currentMoment(code, sessionId);
+    try { answer = await deps.answer({ question: text, layer: route.layer, viewerName: route.label, ...(moment && { moment }) }); }
     catch { answer = FALLBACK_ANSWER; }
     if (!answer || answer === FALLBACK_ANSWER) return reply(200, { ok: false, message: FALLBACK_ANSWER });
 
@@ -236,7 +244,7 @@ export function makeHttpHandler(deps: Deps) {
   }
 
   async function deliverAndNote(code: string, viewers: Viewers, raw: Record<string, unknown>, route: Route, text: string) {
-    const res = await deliver(code, route, text);
+    const res = await deliver(code, route, text, raw.sessionId);
     if (res.statusCode === 200 && (JSON.parse(res.body) as { ok?: boolean }).ok === true) await noteAsked(code, viewers, raw, text).catch(() => undefined);
     return res;
   }

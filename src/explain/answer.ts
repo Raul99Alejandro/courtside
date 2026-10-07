@@ -1,6 +1,7 @@
 import { checkCard, DEFINITIONS, type Concept, type Layer, type Moment } from '../core/index.js';
 import { converse as realConverse, type Converse } from './bedrock.js';
 import { liveModels } from './models.js';
+import { MATCH_TITLE } from './moments.js';
 import { momentFacts } from './prompt.js';
 
 export const FALLBACK_ANSWER = "I couldn't answer that right now - try again in a moment.";
@@ -31,12 +32,47 @@ export function definitionsFor(moment?: Moment): string {
   return concepts.map(c => DEFINITIONS[c]).join(' ');
 }
 
+export const NO_MOMENT_REPLY = 'Start the replay on the TV and ask again, so I can see which moment you mean.';
+
+/** Questions that point at a play or match situation ("that", "the score", a team) and so need a moment on screen. */
+const SITUATIONAL = /\b(that|this|those|these|there|here|now|just|the score|score|scored|leading|losing|winning|trailing|behind|ahead|why (was|did|were|is)|was (it|that|he|she)|argentina|france|argentinian|french|messi|mbapp\w*|di maria|giroud|griezmann|dybala|lloris|martinez|minute|half)\b/i;
+
+/** Concepts a question names, most specific first. */
+const CONCEPT_WORDS: [Concept, RegExp][] = [
+  ['penalty shoot-out', /shoot-?\s?out/i],
+  ['penalty kick', /\bpenalt(y|ies)\b/i],
+  ['offside', /\boff-?side\b/i],
+  ['yellow card', /\byellow\b/i],
+  ['red card', /\b(red card|sent off|sending off)\b/i],
+  ['assist', /\bassists?\b/i],
+  ['shot on goal', /\bon (goal|target)\b/i],
+  ['extra time', /\bextra[- ]time\b/i],
+  ['save', /\bsaves?\b/i],
+  ['shot', /\bshots?\b/i],
+  ['goal', /\bgoals?\b/i],
+];
+export const conceptsNamed = (q: string): Concept[] => CONCEPT_WORDS.filter(([, re]) => re.test(q)).map(([c]) => c);
+
+/** Current score and who leads or trails, from the moment's computed facts only. */
+export function scoreFacts(m: Moment): string {
+  const [a, b] = Object.keys({ ...m.scoreBefore, ...m.scoreAfter });
+  if (!a || !b) return '';
+  const sa = m.scoreAfter[a] ?? 0, sb = m.scoreAfter[b] ?? 0;
+  const state = sa === sb ? `the match is level` : `${sa > sb ? a : b} is leading and ${sa > sb ? b : a} is trailing`;
+  return `Score in minute ${m.minute}, after this moment: ${a} ${sa}, ${b} ${sb}; ${state}. Before this moment it was ${a} ${m.scoreBefore[a] ?? 0}, ${b} ${m.scoreBefore[b] ?? 0}.`;
+}
+
 export async function answerQuestion(
   input: { question: string; layer: Layer; moment?: Moment; viewerName: string; /** epoch ms; no retry unless at least RETRY_MIN_MS remain */ deadlineAt?: number },
   deps: { converse: Converse } = { converse: realConverse },
 ): Promise<string> {
-  const system = `You answer a soccer question spoken aloud on a TV to ${input.viewerName}. ${STYLE[input.layer]} Answer in at most 2 short sentences (under 45 words). Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. If the current moment is given, use only its facts for anything about it. Never use the em dash character; use commas or full stops. Answer the question directly first, then explain the idea. Canonical definitions, never contradict them: ${definitionsFor(input.moment)}${input.layer === 'basic' ? " Never write 'game'; say 'match'." : ''}`;
-  const user = (input.moment ? `Current moment: ${JSON.stringify(momentFacts(input.moment))}
+  const situational = SITUATIONAL.test(input.question);
+  const named = conceptsNamed(input.question);
+  if (!input.moment && situational && named.length === 0) return NO_MOMENT_REPLY;
+  const ruleOnly = !input.moment && situational;
+  const system = `You answer a soccer question spoken aloud on a TV to ${input.viewerName}. ${STYLE[input.layer]} Answer in at most 2 short sentences (under 45 words). Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. ${ruleOnly ? 'No match moment is on screen: give only the general rule, and say nothing about any specific play, player, team, score or minute. ' : input.moment ? `Use only the current moment's facts for anything about the match. ${scoreFacts(input.moment)} Make no claim about any other moment, earlier or later, and never invent a score, a minute or who was winning. ` : ''} Never use the em dash character; use commas or full stops. Answer the question directly first, then explain the idea. Canonical definitions, never contradict them: ${ruleOnly ? named.map(c => DEFINITIONS[c]).join(' ') : definitionsFor(input.moment)}${input.layer === 'basic' ? " Never write 'game'; say 'match'." : ''}`;
+  const user = (input.moment ? `Current moment: ${JSON.stringify(momentFacts(input.moment, MATCH_TITLE))}
+${scoreFacts(input.moment)}
 
 ` : '') + `Question: ${input.question}`;
   let prompt = user;

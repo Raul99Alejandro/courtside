@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { answerLayerForQuestion, lowestLayer, normaliseCode, routeQuestion, type Layer, type Viewer } from '../core/index.js';
+import { answerLayerForQuestion, lowestLayer, normaliseCode, routeQuestion, type Layer, type Moment, type Viewer } from '../core/index.js';
 import { FALLBACK_ANSWER } from '../explain/answer.js';
+import { momentById } from '../explain/moments.js';
 import { MAX_GLOBAL_QUESTIONS_PER_DAY, MAX_GLOBAL_QUESTIONS_PER_HOUR, MAX_QUESTIONS_PER_HOUR, MAX_QUESTION_CHARS } from '../api/http.js';
 import type { Push } from '../api/push.js';
 import { CODE_ALPHABET } from '../api/store.js';
@@ -10,7 +11,7 @@ export type SkillDeps = {
   skillId: string;
   verify: (headers: Record<string, string | undefined>, rawBody: Buffer, signal?: AbortSignal) => Promise<boolean>;
   store: AlexaStore;
-  answer: (i: { question: string; layer: Layer; viewerName: string; deadlineAt?: number }) => Promise<string>;
+  answer: (i: { question: string; layer: Layer; viewerName: string; deadlineAt?: number; moment?: Moment }) => Promise<string>;
   push: Push;
   /** Absolute time (ms since epoch) by which a reply must be sent: Alexa gives a skill 8 seconds from the request. */
   deadlineAt: number;
@@ -150,7 +151,7 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
       if (global.hour > MAX_GLOBAL_QUESTIONS_PER_HOUR || global.day > MAX_GLOBAL_QUESTIONS_PER_DAY) return say('Courtside is busy right now. Try again in a little while.');
 
       let text: string;
-      try { text = await deps.answer({ question, layer, viewerName: label, deadlineAt: deps.deadlineAt }); } catch { text = FALLBACK_ANSWER; }
+      try { const moment = await latestMoment(store, code); text = await deps.answer({ question, layer, viewerName: label, deadlineAt: deps.deadlineAt, ...(moment && { moment }) }); } catch { text = FALLBACK_ANSWER; }
       if (!text || text === FALLBACK_ANSWER) return say(FALLBACK_ANSWER, { card: FALLBACK_ANSWER });
 
       const item = { id: randomUUID(), label, layer, question, answer: text, at: Date.now() };
@@ -167,6 +168,15 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
 
   if (name === 'AMAZON.StopIntent' || name === 'AMAZON.CancelIntent') return say('Goodbye.');
   return say(HELP, { end: false, reprompt: HELP });
+}
+
+/** The moment the household's newest session last showed, if known. */
+async function latestMoment(store: AlexaStore, code: string): Promise<Moment | undefined> {
+  try {
+    const latest = await store.latestSession(code);
+    const id = latest?.momentId ?? (latest ? (await store.getSession(code, latest.sessionId))?.momentId : undefined);
+    return momentById(id);
+  } catch { return undefined; }
 }
 
 /** R-08-b: the lowest layer among the people in the household's newest session; basic when nobody is known. */

@@ -85,3 +85,41 @@ it('reads the live model chain from LIVE_MODELS, defaulting to Haiku then Nova 2
   if (prev === undefined) delete process.env.LIVE_MODELS; else process.env.LIVE_MODELS = prev;
   expect(ids).toEqual(['us.amazon.nova-pro-v1:0']);
 });
+
+// No-context guard: nothing on screen means nothing to say about "that" play.
+import { NO_MOMENT_REPLY } from '../src/explain/answer.js';
+import { momentById } from '../src/explain/moments.js';
+it('asks for the replay when a situational question has no moment and names no concept', async () => {
+  let called = false;
+  const out = await answerQuestion({ ...input, question: "How did the score shape France's approach?" }, { converse: async () => { called = true; return { text: 'x', modelId: 'f' }; } });
+  expect(out).toBe(NO_MOMENT_REPLY);
+  expect(called).toBe(false);
+  expect(NO_MOMENT_REPLY).toBe('Start the replay on the TV and ask again, so I can see which moment you mean.');
+});
+it('answers only the general rule when a situational question names a concept but no moment is on screen', async () => {
+  let system = '';
+  const out = await answerQuestion({ ...input, question: 'Why was that a penalty?' }, { converse: async (_m, s) => { system = s; return { text: 'A penalty kick is a free shot from the spot, given for a foul in the box.', modelId: 'f' }; } });
+  expect(out).toContain('penalty kick');
+  expect(system).toContain('No match moment is on screen');
+  expect(system).toContain('A penalty kick is a free shot');
+  expect(system).not.toContain('Offside is');
+});
+it('a plain rule question with no moment is unchanged', async () => {
+  let system = '';
+  await answerQuestion(input, { converse: async (_m, s) => { system = s; return { text: ok, modelId: 'f' }; } });
+  expect(system).not.toContain('No match moment');
+  expect(system).toContain('Offside is');
+});
+it('with a moment, the prompt states the score, leader and trailer and forbids other moments', async () => {
+  const moment = momentById('6cc0d5e2-6999-4006-8a7a-34de4cbe3ffd')!;
+  let system = '', user = '';
+  await answerQuestion({ ...input, question: 'Why was that a penalty?', moment }, { converse: async (_m, s, u) => { system = s; user = u; return { text: 'It was a foul in the box, so France got a free shot.', modelId: 'f' }; } });
+  expect(system).toContain('Argentina 2, France 1');
+  expect(system).toContain('Argentina is leading and France is trailing');
+  expect(system).toContain('Make no claim about any other moment');
+  expect(user).toContain('Argentina is leading and France is trailing');
+});
+it('knows the moments by id', () => {
+  expect(momentById('nope')).toBeUndefined();
+  expect(momentById(undefined)).toBeUndefined();
+});
