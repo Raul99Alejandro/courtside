@@ -119,6 +119,8 @@ node scripts/smoke.mjs
 
 The stack (`infra/lib/stack.ts`) is checked with cdk-nag; every suppression carries a written reason. Claude models on Bedrock need the account's use-case form; without access the code falls back to Nova 2 Lite.
 
+The live model chain (phone and Alexa questions) is the CDK context `liveModels` in `cdk.json` (comma-separated Bedrock ids, tried in order). To switch back to Claude, set it to `us.anthropic.claude-haiku-4-5-20251001-v1:0,us.amazon.nova-2-lite-v1:0` (the built-in default) and redeploy.
+
 ## Documents
 
 - `docs/reality.md`: research findings and decisions (what the platforms really allow).

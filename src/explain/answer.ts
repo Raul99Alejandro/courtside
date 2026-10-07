@@ -1,5 +1,6 @@
 import { checkCard, DEFINITIONS, type Concept, type Layer, type Moment } from '../core/index.js';
-import { converse as realConverse, LIVE_MODELS, type Converse } from './bedrock.js';
+import { converse as realConverse, type Converse } from './bedrock.js';
+import { liveModels } from './models.js';
 import { momentFacts } from './prompt.js';
 
 export const FALLBACK_ANSWER = "I couldn't answer that right now - try again in a moment.";
@@ -42,7 +43,7 @@ export async function answerQuestion(
   for (let attempt = 1; attempt <= 2; attempt++) {
     let problems: string[];
     try {
-      const r = await deps.converse(LIVE_MODELS, system, prompt, 200);
+      const r = await deps.converse(liveModels(), system, prompt, 200);
       let text = r.text.replace(/\s*—\s*/g, ', ').trim();
       // The card check rejects "game" in basic lines and the model says it often: fix the word instead of discarding the answer.
       if (input.layer === 'basic') text = text.replace(/\bgame(s?)\b/gi, (w, s: string) => (w[0] === 'G' ? 'M' : 'm') + (s ? 'atches' : 'atch'));

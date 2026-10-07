@@ -72,3 +72,16 @@ it('puts only the moment concepts definitions in the live system prompt, or all 
   expect(system).toContain(DEFINITIONS.goal);
   expect(system).not.toContain(DEFINITIONS.offside);
 });
+
+it('reads the live model chain from LIVE_MODELS, defaulting to Haiku then Nova 2 Lite', async () => {
+  const { liveModels, parseModels, DEFAULT_LIVE_MODELS } = await import('../src/explain/models.js');
+  expect(liveModels({})).toEqual(DEFAULT_LIVE_MODELS);
+  expect(liveModels({ LIVE_MODELS: ' ' })).toEqual(DEFAULT_LIVE_MODELS);
+  expect(parseModels(' a , b,,c ')).toEqual(['a', 'b', 'c']);
+  const prev = process.env.LIVE_MODELS;
+  process.env.LIVE_MODELS = 'us.amazon.nova-pro-v1:0';
+  let ids: string[] = [];
+  await answerQuestion(input, { converse: async (m: string[]) => { ids = m; return { text: 'Offside is being ahead.', modelId: 'f' }; } });
+  if (prev === undefined) delete process.env.LIVE_MODELS; else process.env.LIVE_MODELS = prev;
+  expect(ids).toEqual(['us.amazon.nova-pro-v1:0']);
+});

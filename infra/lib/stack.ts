@@ -14,15 +14,13 @@ import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import { NagSuppressions } from 'cdk-nag';
 import type { Construct } from 'constructs';
+import { foundationId, parseModels } from '../../src/explain/models.js';
 
 export interface CourtsideStackProps extends StackProps {
   /** Directory with the built web pages (npm run web:build). */
   readonly webDir?: string;
 }
 
-/** Live answers: Claude Haiku 4.5 first, Nova 2 Lite as the fallback (src/explain/bedrock.ts LIVE_MODELS). */
-const PROFILES = ['us.anthropic.claude-haiku-4-5-20251001-v1:0', 'us.amazon.nova-2-lite-v1:0'];
-const FOUNDATION_MODELS = ['anthropic.claude-haiku-4-5-20251001-v1:0', 'amazon.nova-2-lite-v1:0'];
 const WS_STAGE = 'prod';
 const root = (p: string) => fileURLToPath(new URL(`../../${p}`, import.meta.url));
 
@@ -32,6 +30,11 @@ export class CourtsideStack extends Stack {
     super(scope, id, { ...props, tags: { ...props.tags, project: 'courtside' } });
     const ownerEmail = this.node.tryGetContext('ownerEmail') as string | undefined;
     if (!ownerEmail) throw new Error('Pass the owner email as context: -c ownerEmail=you@example.com');
+
+    // Live answers: the chain comes from the `liveModels` context (default in src/explain/models.ts); IAM follows the list.
+    const liveModels = parseModels(this.node.tryGetContext('liveModels') as string | undefined);
+    const PROFILES = liveModels.filter(m => foundationId(m) !== m);
+    const FOUNDATION_MODELS = [...new Set(liveModels.map(foundationId))];
 
     const table = new dynamodb.Table(this, 'Table', {
       partitionKey: { name: 'pk', type: dynamodb.AttributeType.STRING },
@@ -68,7 +71,7 @@ export class CourtsideStack extends Stack {
     });
     const wsStage = new apigw.WebSocketStage(this, 'WsStage', { webSocketApi: wsApi, stageName: WS_STAGE, autoDeploy: true });
 
-    const httpFn = fn('Http', 'src/api/http.ts', 256, Duration.seconds(25), { WS_ENDPOINT: wsStage.callbackUrl });
+    const httpFn = fn('Http', 'src/api/http.ts', 256, Duration.seconds(25), { WS_ENDPOINT: wsStage.callbackUrl, LIVE_MODELS: liveModels.join(',') });
     table.grantReadWriteData(httpFn);
     const bedrockInvoke = () => new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
@@ -94,7 +97,7 @@ export class CourtsideStack extends Stack {
     // `alexaSkillId` context (cdk.json or -c) once the skill exists; without it every request is rejected.
     // Table access is limited to the item operations it needs (no Scan, no batch writes).
     const alexaFn = fn('Alexa', 'src/alexa/handler.ts', 256, Duration.seconds(8), {
-      WS_ENDPOINT: wsStage.callbackUrl, ALEXA_SKILL_ID: (this.node.tryGetContext('alexaSkillId') as string | undefined) ?? '',
+      WS_ENDPOINT: wsStage.callbackUrl, LIVE_MODELS: liveModels.join(','), ALEXA_SKILL_ID: (this.node.tryGetContext('alexaSkillId') as string | undefined) ?? '',
     });
     alexaFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:Query'], resources: [table.tableArn],

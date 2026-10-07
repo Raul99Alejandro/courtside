@@ -10,7 +10,7 @@ import { CourtsideStack } from '../infra/lib/stack.js';
 const webDir = mkdtempSync(join(tmpdir(), 'courtside-web-'));
 writeFileSync(join(webDir, 'index.html'), '<!doctype html><title>Courtside</title>');
 
-const app = new App({ context: { ownerEmail: 'owner@example.com' } });
+const app = new App({ context: { ownerEmail: 'owner@example.com', liveModels: 'us.amazon.nova-pro-v1:0,us.amazon.nova-2-lite-v1:0' } });
 const stack = new CourtsideStack(app, 'Courtside', { env: { account: '111111111111', region: 'us-east-1' }, webDir });
 Aspects.of(stack).add(new AwsSolutionsChecks({ verbose: true }));
 const t = Template.fromStack(stack);
@@ -49,9 +49,27 @@ describe('Courtside stack', () => {
       expect([s.Resource].flat()).not.toContain('*');
     }
     const json = JSON.stringify(bedrock);
-    expect(json).toContain('inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0');
     expect(json).toContain('inference-profile/us.amazon.nova-2-lite-v1:0');
+    expect(json).toContain('inference-profile/us.amazon.nova-pro-v1:0');
+    expect(json).not.toContain('claude-haiku');
   });
+
+  it('derives IAM and the LIVE_MODELS env var from the liveModels list (default when absent)', () => {
+    const synth = (ctx: Record<string, string>) => {
+      const a = new App({ context: { ownerEmail: 'owner@example.com', ...ctx } });
+      return Template.fromStack(new CourtsideStack(a, 'C2', { env: { account: '111111111111', region: 'us-east-1' }, webDir }));
+    };
+    const custom = synth({ liveModels: 'us.amazon.nova-pro-v1:0, amazon.titan-text-premier-v1:0' });
+    const resources = JSON.stringify(Object.values(custom.findResources('AWS::IAM::Policy')));
+    expect(resources).toContain('foundation-model/amazon.nova-pro-v1:0');
+    expect(resources).toContain('foundation-model/amazon.titan-text-premier-v1:0');
+    expect(resources).not.toContain('inference-profile/amazon.titan');
+    expect(resources).not.toContain('nova-2-lite');
+    const envs = Object.values(custom.findResources('AWS::Lambda::Function')).map(f => f.Properties.Environment?.Variables?.LIVE_MODELS).filter(Boolean);
+    expect(envs).toEqual(['us.amazon.nova-pro-v1:0,amazon.titan-text-premier-v1:0', 'us.amazon.nova-pro-v1:0,amazon.titan-text-premier-v1:0']);
+    const dflt = JSON.stringify(Object.values(synth({}).findResources('AWS::IAM::Policy')));
+    expect(dflt).toContain('inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0');
+  }, 60000);
 
   it('lets only the http and Alexa Lambdas post to WebSocket connections, on one stage', () => {
     const manage = Object.entries(t.findResources('AWS::IAM::Policy')).filter(([, p]) => JSON.stringify(p).includes('execute-api:ManageConnections'));

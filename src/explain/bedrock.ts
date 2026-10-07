@@ -1,7 +1,7 @@
 import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
 export const PRE_MODELS = ['us.anthropic.claude-sonnet-4-6', 'us.anthropic.claude-haiku-4-5-20251001-v1:0'];
-export const LIVE_MODELS = ['us.anthropic.claude-haiku-4-5-20251001-v1:0', 'us.amazon.nova-2-lite-v1:0'];
+export { DEFAULT_LIVE_MODELS, liveModels } from './models.js';
 /** Generation judge: Nova Pro first (covered by credits), Nova 2 Lite as the fallback (RC-10). */
 export const JUDGE_MODELS = ['us.amazon.nova-pro-v1:0', 'us.amazon.nova-2-lite-v1:0'];
 

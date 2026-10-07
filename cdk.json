@@ -2,6 +2,7 @@
   "app": "npx tsx infra/bin/app.ts",
   "context": {
     "alexaSkillId": "amzn1.ask.skill.6c3679e0-7f8e-47fc-a68c-cc439e9d3a10",
-    "alexaReservedConcurrency": "off"
+    "alexaReservedConcurrency": "off",
+    "liveModels": "us.amazon.nova-pro-v1:0,us.amazon.nova-2-lite-v1:0"
   }
 }
