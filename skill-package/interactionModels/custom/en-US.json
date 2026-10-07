@@ -1,0 +1,46 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "court side",
+      "intents": [
+        { "name": "AMAZON.HelpIntent", "samples": [] },
+        { "name": "AMAZON.StopIntent", "samples": [] },
+        { "name": "AMAZON.CancelIntent", "samples": [] },
+        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        {
+          "name": "AskCourtsideIntent",
+          "slots": [{ "name": "query", "type": "AMAZON.SearchQuery" }],
+          "samples": [
+            "why was that {query}",
+            "why was it {query}",
+            "what is {query}",
+            "what is a {query}",
+            "what does {query} mean",
+            "explain {query}",
+            "explain the {query}"
+          ]
+        },
+        {
+          "name": "LinkHouseholdIntent",
+          "slots": [{ "name": "code", "type": "AMAZON.SearchQuery" }],
+          "samples": [
+            "link household {code}",
+            "link my household {code}",
+            "link to household {code}"
+          ]
+        },
+        {
+          "name": "LinkVoiceIntent",
+          "slots": [{ "name": "name", "type": "AMAZON.FirstName" }],
+          "samples": [
+            "I am {name}",
+            "I'm {name}",
+            "this is {name}",
+            "my name is {name}"
+          ]
+        }
+      ],
+      "types": []
+    }
+  }
+}

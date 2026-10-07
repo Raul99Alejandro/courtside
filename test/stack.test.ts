@@ -53,10 +53,23 @@ describe('Courtside stack', () => {
     expect(json).toContain('inference-profile/us.amazon.nova-2-lite-v1:0');
   });
 
-  it('lets only the http Lambda post to WebSocket connections, on one stage', () => {
+  it('lets only the http and Alexa Lambdas post to WebSocket connections, on one stage', () => {
     const manage = Object.entries(t.findResources('AWS::IAM::Policy')).filter(([, p]) => JSON.stringify(p).includes('execute-api:ManageConnections'));
-    expect(manage).toHaveLength(1);
-    expect(manage[0]![0]).toMatch(/Http/);
+    expect(manage.map(([id]) => id.replace(/ServiceRole.*$/, '').replace(/[0-9A-F]{8}$/, '')).sort()).toEqual(['Alexa', 'Http']);
+    for (const [, p] of manage) expect(JSON.stringify(p)).toContain('/prod/POST/@connections/*');
+  });
+
+  it('serves the Alexa skill from a 8 s function with item-level table access, no scan, no batch, no secrets', () => {
+    const [, policy] = Object.entries(t.findResources('AWS::IAM::Policy')).find(([id]) => /^Alexa/.test(id))!;
+    const json = JSON.stringify(policy);
+    expect(json).toContain('dynamodb:Query');
+    expect(json).not.toMatch(/dynamodb:(Scan|Batch|\*)|secretsmanager|transcribe|s3:/);
+    const alexa = Object.entries(t.findResources('AWS::Lambda::Function')).find(([id]) => id.startsWith('Alexa'))![1];
+    expect(alexa.Properties.Timeout).toBe(8);
+    expect(alexa.Properties.Environment.Variables).toHaveProperty('WS_ENDPOINT');
+    const urls = Object.values(t.findResources('AWS::Lambda::Url', { Properties: { AuthType: 'NONE' } }));
+    expect(urls).toHaveLength(1);
+    expect(Object.keys(t.findOutputs('*'))).toContain('AlexaEndpoint');
   });
 
   it('lets only the http Lambda stream to Transcribe, with exactly that one action', () => {
@@ -80,6 +93,7 @@ describe('Courtside stack', () => {
 
   it('runs Node 22 Lambdas with the brief sizes', () => {
     t.hasResourceProperties('AWS::Lambda::Function', { Runtime: 'nodejs22.x', MemorySize: 256, Timeout: 25, Handler: 'index.handler' });
+    t.hasResourceProperties('AWS::Lambda::Function', { Runtime: 'nodejs22.x', MemorySize: 256, Timeout: 8, Handler: 'index.handler' });
   });
 
   it('throttles both stages at 10 rps, burst 20', () => {

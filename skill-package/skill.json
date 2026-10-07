@@ -1,0 +1,47 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "en-US": {
+          "name": "court side",
+          "summary": "Ask a soccer question out loud and read the answer on your TV, at your level.",
+          "description": "Courtside explains soccer to everyone in the room at their own level. Link your household once, then ask a question and the answer appears on the Courtside TV app, labelled with who asked.",
+          "examplePhrases": [
+            "Alexa, open court side",
+            "Alexa, ask court side why was that offside",
+            "Alexa, ask court side what is a penalty"
+          ],
+          "keywords": [
+            "soccer",
+            "football",
+            "tv",
+            "explain"
+          ]
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": [
+        "US"
+      ],
+      "category": "GAMES",
+      "testingInstructions": "Development only. Test in the Alexa developer console simulator."
+    },
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "https://6oyj7kqxbar777jksmc3wbygle0ukjow.lambda-url.us-east-1.on.aws/",
+          "sslCertificateType": "Wildcard"
+        },
+        "interfaces": []
+      }
+    }
+  }
+}

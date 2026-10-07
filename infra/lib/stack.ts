@@ -70,22 +70,38 @@ export class CourtsideStack extends Stack {
 
     const httpFn = fn('Http', 'src/api/http.ts', 256, Duration.seconds(25), { WS_ENDPOINT: wsStage.callbackUrl });
     table.grantReadWriteData(httpFn);
-    httpFn.addToRolePolicy(new iam.PolicyStatement({
+    const bedrockInvoke = () => new iam.PolicyStatement({
       actions: ['bedrock:InvokeModel'],
       resources: [
         ...PROFILES.map(p => `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${p}`),
         // The us. cross-region profiles route to several US regions, so the model ARN needs a region wildcard.
         ...FOUNDATION_MODELS.map(m => `arn:aws:bedrock:*::foundation-model/${m}`),
       ],
-    }));
+    });
+    const manageConnections = () => new iam.PolicyStatement({
+      actions: ['execute-api:ManageConnections'],
+      resources: [`arn:aws:execute-api:${this.region}:${this.account}:${wsApi.apiId}/${WS_STAGE}/POST/@connections/*`],
+    });
+    httpFn.addToRolePolicy(bedrockInvoke());
     httpFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['transcribe:StartStreamTranscription'],
       resources: ['*'], // Transcribe streaming has no resource-level permissions
     }));
-    httpFn.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['execute-api:ManageConnections'],
-      resources: [`arn:aws:execute-api:${this.region}:${this.account}:${wsApi.apiId}/${WS_STAGE}/POST/@connections/*`],
+    httpFn.addToRolePolicy(manageConnections());
+
+    // Alexa skill endpoint (HTTPS Function URL). Public by design: Alexa cannot sign with IAM, so the function itself checks the
+    // Alexa certificate chain, signature, timestamp and skill id before touching any data. The skill id comes from the
+    // `alexaSkillId` context (cdk.json or -c) once the skill exists; without it every request is rejected.
+    // Table access is limited to the item operations it needs (no Scan, no batch writes).
+    const alexaFn = fn('Alexa', 'src/alexa/handler.ts', 256, Duration.seconds(8), {
+      WS_ENDPOINT: wsStage.callbackUrl, ALEXA_SKILL_ID: (this.node.tryGetContext('alexaSkillId') as string | undefined) ?? '',
+    });
+    alexaFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:Query'], resources: [table.tableArn],
     }));
+    alexaFn.addToRolePolicy(bedrockInvoke());
+    alexaFn.addToRolePolicy(manageConnections());
+    const alexaUrl = alexaFn.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.NONE });
 
     const httpApi = new apigw.HttpApi(this, 'HttpApi', {
       apiName: 'courtside-http',
@@ -141,11 +157,12 @@ export class CourtsideStack extends Stack {
     new CfnOutput(this, 'SiteUrl', { value: `https://${distribution.distributionDomainName}/` });
     new CfnOutput(this, 'HttpApiUrl', { value: httpApi.apiEndpoint });
     new CfnOutput(this, 'WsUrl', { value: wsStage.url });
+    new CfnOutput(this, 'AlexaEndpoint', { value: alexaUrl.url });
 
     Tags.of(this).add('project', 'courtside');
 
     // IAM5 is acknowledged per role and per finding, so any new wildcard fails the stack test.
-    NagSuppressions.addResourceSuppressions(httpFn.role!, [{
+    NagSuppressions.addResourceSuppressions([httpFn.role!, alexaFn.role!], [{
       id: 'AwsSolutions-IAM5',
       appliesTo: [
         ...FOUNDATION_MODELS.map(m => `Resource::arn:aws:bedrock:*::foundation-model/${m}`),
