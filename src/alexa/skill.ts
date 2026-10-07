@@ -10,7 +10,7 @@ export type SkillDeps = {
   skillId: string;
   verify: (headers: Record<string, string | undefined>, rawBody: Buffer, signal?: AbortSignal) => Promise<boolean>;
   store: AlexaStore;
-  answer: (i: { question: string; layer: Layer; viewerName: string }) => Promise<string>;
+  answer: (i: { question: string; layer: Layer; viewerName: string; deadlineAt?: number }) => Promise<string>;
   push: Push;
   /** Absolute time (ms since epoch) by which a reply must be sent: Alexa gives a skill 8 seconds from the request. */
   deadlineAt: number;
@@ -150,7 +150,7 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
       if (global.hour > MAX_GLOBAL_QUESTIONS_PER_HOUR || global.day > MAX_GLOBAL_QUESTIONS_PER_DAY) return say('Courtside is busy right now. Try again in a little while.');
 
       let text: string;
-      try { text = await deps.answer({ question, layer, viewerName: label }); } catch { text = FALLBACK_ANSWER; }
+      try { text = await deps.answer({ question, layer, viewerName: label, deadlineAt: deps.deadlineAt }); } catch { text = FALLBACK_ANSWER; }
       if (!text || text === FALLBACK_ANSWER) return say(FALLBACK_ANSWER, { card: FALLBACK_ANSWER });
 
       const item = { id: randomUUID(), label, layer, question, answer: text, at: Date.now() };

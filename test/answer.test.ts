@@ -1,4 +1,4 @@
-import { it, expect } from 'vitest';
+import { it, expect, vi } from 'vitest';
 import { answerQuestion, FALLBACK_ANSWER } from '../src/explain/answer.js';
 
 const input = { question: 'What is offside?', layer: 'basic' as const, viewerName: 'Ana' };
@@ -27,4 +27,37 @@ it('says match for a basic viewer instead of discarding an answer that says game
 it('leaves the word game alone for other layers', async () => {
   const out = await answerQuestion({ ...input, layer: 'intermediate' }, { converse: async () => ({ text: 'Game state matters here.', modelId: 'f' }) });
   expect(out).toBe('Game state matters here.');
+});
+
+const ok = 'Offside means the attacker was ahead of the last defender.';
+it('retries once with the problems appended when the first answer is rejected', async () => {
+  const prompts: string[] = [];
+  const out = await answerQuestion(input, { converse: async (_m, _s, u) => { prompts.push(u); return { text: prompts.length === 1 ? 'The 2022 FIFA final [1,2]' : ok, modelId: 'f' }; } });
+  expect(out).toBe(ok);
+  expect(prompts).toHaveLength(2);
+  expect(prompts[1]).toContain('rejected');
+  expect(prompts[1]).toContain('Question: What is offside?');
+});
+it('falls back when both attempts fail, logging reason codes only', async () => {
+  const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+  let calls = 0;
+  const out = await answerQuestion(input, { converse: async () => { calls++; return { text: 'The 2022 FIFA final [1,2]', modelId: 'f' }; } });
+  expect(out).toBe(FALLBACK_ANSWER);
+  expect(calls).toBe(2);
+  const lines = log.mock.calls.map(c => String(c[0]));
+  log.mockRestore();
+  expect(lines).toHaveLength(2);
+  const first = JSON.parse(lines[0]!);
+  expect(first.event).toBe('answer_rejected');
+  expect(first.attempt).toBe(1);
+  expect(first.reasons).toContain('banned_term');
+  expect(lines.join('')).not.toContain('2022');
+});
+it('does not retry when less than 2.5 s remain', async () => {
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  let calls = 0;
+  const out = await answerQuestion({ ...input, deadlineAt: Date.now() + 1000 }, { converse: async () => { calls++; return { text: 'The 2022 FIFA final [1,2]', modelId: 'f' }; } });
+  vi.restoreAllMocks();
+  expect(out).toBe(FALLBACK_ANSWER);
+  expect(calls).toBe(1);
 });

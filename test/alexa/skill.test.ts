@@ -118,7 +118,7 @@ describe('Courtside Alexa skill', () => {
   it('answers a spoken name at that viewer layer and label, and personId still wins', async () => {
     f.links.set(USER, CODE);
     await run(bodyOf(intent('AskAsIntent', { query: 'leo, offside' })));
-    expect(asked[0]).toEqual({ question: 'offside', layer: 'basic', viewerName: 'Leo' });
+    expect(asked[0]).toMatchObject({ question: 'offside', layer: 'basic', viewerName: 'Leo' });
     expect(pushed[0]!.payload).toMatchObject({ label: 'Leo', layer: 'basic' });
     expect(speech(await run(bodyOf(intent('AskAsIntent', { query: 'Raul, offside' }))))).toBe("It's on your TV, Raul.");
     expect(asked[1]).toMatchObject({ layer: 'tactical', viewerName: 'Raul' });
@@ -126,7 +126,7 @@ describe('Courtside Alexa skill', () => {
     await run(bodyOf(intent('AskAsIntent', { query: 'Leo, offside' }), { personId: 'p1' }));
     expect(asked[2]).toMatchObject({ layer: 'tactical', viewerName: 'Raul' });
     await run(bodyOf(intent('AskAsIntent', { query: 'Nobody offside' })));
-    expect(asked[3]).toEqual({ question: 'Nobody offside', layer: 'basic', viewerName: GUEST });
+    expect(asked[3]).toMatchObject({ question: 'Nobody offside', layer: 'basic', viewerName: GUEST });
     expect(speech(await run(bodyOf(intent('AskAsIntent', { query: 'Leo' }))))).toMatch(/^Say:/);
   });
 
@@ -165,7 +165,7 @@ describe('Courtside Alexa skill', () => {
   it('R-06: a known speaker is answered at their layer, labelled with their name, pushed to the TVs and kept', async () => {
     f.links.set(USER, CODE); f.voices.set(`${CODE}#p1`, 'Raul');
     const r = await run(bodyOf(intent('AskCourtsideIntent', { query: 'offside' }), { personId: 'p1' }));
-    expect(asked).toEqual([{ question: 'offside', layer: 'tactical', viewerName: 'Raul' }]);
+    expect(asked).toMatchObject([{ question: 'offside', layer: 'tactical', viewerName: 'Raul' }]);
     expect(speech(r)).toBe("It's on your TV, Raul.");
     expect(pushed).toHaveLength(1);
     expect(pushed[0]!.ids).toEqual(['c1', 'c2']);
@@ -185,7 +185,7 @@ describe('Courtside Alexa skill', () => {
     f.links.set(USER, CODE);
     f.setLatest('s1', ['Raul', 'Leo']);
     const r = await run(bodyOf(intent('AskCourtsideIntent', { query: 'offside' })));
-    expect(asked[0]).toEqual({ question: 'offside', layer: 'basic', viewerName: GUEST });
+    expect(asked[0]).toMatchObject({ question: 'offside', layer: 'basic', viewerName: GUEST });
     expect(pushed[0]!.payload).toMatchObject({ label: GUEST, layer: 'basic' });
     expect(speech(r)).toBe("It's on your TV.");
     f.setLatest('s2', ['Raul']);
