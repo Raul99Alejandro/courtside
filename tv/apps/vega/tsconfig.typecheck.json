@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "moduleSuffixes": [".kepler", ""],
+    "types": ["react", "@amazon-devices/react-native-kepler"],
+    "lib": ["es2020", "dom"],
+    "paths": {
+      "@courtside/core": ["../../../src/core/index.ts"],
+      "@courtside/shared": ["../../packages/shared/src/index.ts"],
+      "@react-navigation/native": ["node_modules/@amazon-devices/react-navigation__native"],
+      "@react-navigation/native-stack": ["node_modules/@amazon-devices/react-navigation__native-stack"],
+      "react-native": ["node_modules/@amazon-devices/react-native-kepler"],
+      "react-native-svg": ["node_modules/@amazon-devices/react-native-svg"],
+      "react-native-qrcode-svg": ["node_modules/@amazon-devices/react-native-qrcode-svg"],
+      "*": ["node_modules/@types/*", "node_modules/*"]
+    }
+  },
+  "files": ["index.js", "src/App.tsx"],
+  "include": ["../../packages/shared/src/types.d.ts"]
+}

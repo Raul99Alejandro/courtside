@@ -1,88 +1,54 @@
-// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
-// SPDX-License-Identifier: MIT-0
-
-const {getDefaultConfig, mergeConfig} = require('@react-native/metro-config');
+// Metro config for the Vega app (RN 0.72 line, @amazon-devices/* libraries).
+// Shared code imports the community package names; here they are redirected to the Vega ports.
+const { getDefaultConfig, mergeConfig } = require('@react-native/metro-config');
 const path = require('path');
 
-/**
- * Metro configuration for Vega workspace
- * https://facebook.github.io/metro/docs/configuration
- *
- * @type {import('metro-config').MetroConfig}
- */
+const tvRoot = path.resolve(__dirname, '../..');
+const coreDir = path.resolve(tvRoot, '../src/core');
+const sharedSrc = path.resolve(tvRoot, 'packages/shared/src');
+const vegaModules = path.resolve(__dirname, 'node_modules');
+
+const ALIASES = require('./aliases');
+
 const config = {
+  projectRoot: __dirname,
   watchFolders: [
-    path.resolve(__dirname, '../../packages/shared'),
+    tvRoot,
+    coreDir,
+    // generated moments (git-ignored) and committed cards, imported as JSON by shared
+    path.resolve(tvRoot, '../build'),
+    path.resolve(tvRoot, '../cards'),
   ],
   resolver: {
     unstable_enableSymlinks: true,
-    sourceExts: ['vega.tsx', 'vega.ts', 'vega.js', 'tsx', 'ts', 'jsx', 'js', 'json'],
-    nodeModulesPaths: [
-      path.resolve(__dirname, 'node_modules'),
-      path.resolve(__dirname, '../../node_modules'),
-    ],
-    extraNodeModules: (function() {
-      const modules = {
-        'react': path.resolve(__dirname, 'node_modules/react'),
-        'react-native': path.resolve(__dirname, 'node_modules/react-native'),
-        '@babel/runtime': path.resolve(__dirname, 'node_modules/@babel/runtime'),
-      };
-
-      // Map navigation packages to Amazon Devices ports for Vega
-      const navigationMappings = {
-        '@react-navigation/native': '@amazon-devices/react-navigation__native',
-        '@react-navigation/native-stack': '@amazon-devices/react-navigation__native-stack',
-        '@react-navigation/drawer': '@amazon-devices/react-navigation__drawer',
-        '@react-navigation/core': '@amazon-devices/react-navigation__core',
-        '@react-navigation/routers': '@amazon-devices/react-navigation__routers',
-        '@react-navigation/elements': '@amazon-devices/react-navigation__elements',
-      };
-
-      // Map system libs to Amazon Devices versions
-      const systemMappings = {
-        'react-native-gesture-handler': '@amazon-devices/react-native-gesture-handler',
-        'react-native-reanimated': '@amazon-devices/react-native-reanimated',
-        'react-native-safe-area-context': '@amazon-devices/react-native-safe-area-context',
-        'react-native-screens': '@amazon-devices/react-native-screens',
-      };
-
-      // Apply mappings - ensure we're resolving to vega's node_modules
-      Object.keys(navigationMappings).forEach(key => {
-        const target = path.resolve(__dirname, 'node_modules', navigationMappings[key]);
-        modules[key] = target;
-      });
-
-      Object.keys(systemMappings).forEach(key => {
-        const target = path.resolve(__dirname, 'node_modules', systemMappings[key]);
-        modules[key] = target;
-      });
-
-      return modules;
-    })(),
-    resolverMainFields: ['react-native', 'browser', 'main'],
-    platforms: ['native', 'ios', 'android', 'tv'],
-    blockList: [
-      // Block standard react-navigation packages from parent node_modules
-      new RegExp(
-        path.resolve(__dirname, '..', 'node_modules', '@react-navigation').replace(/[/\\]/g, '[/\\\\]')
-      ),
-      // Block standard gesture handler from parent node_modules
-      new RegExp(
-        path.resolve(__dirname, '..', 'node_modules', 'react-native-gesture-handler').replace(/[/\\]/g, '[/\\\\]')
-      ),
-      // Block standard reanimated from parent node_modules
-      new RegExp(
-        path.resolve(__dirname, '..', 'node_modules', 'react-native-reanimated').replace(/[/\\]/g, '[/\\\\]')
-      ),
-      // Block standard screens from parent node_modules
-      new RegExp(
-        path.resolve(__dirname, '..', 'node_modules', 'react-native-screens').replace(/[/\\]/g, '[/\\\\]')
-      ),
-      // Block standard safe-area-context from parent node_modules
-      new RegExp(
-        path.resolve(__dirname, '..', 'node_modules', 'react-native-safe-area-context').replace(/[/\\]/g, '[/\\\\]')
-      ),
-    ],
+    // *.kepler.ts (remote keys) win over the plain file; the tv root has no hoisted deps
+    // (nmHoistingLimits: workspaces), so shared and core resolve bare imports from here.
+    platforms: ['kepler', 'native', 'ios', 'android'],
+    nodeModulesPaths: [vegaModules],
+    extraNodeModules: {
+      '@courtside/core': coreDir,
+      '@courtside/shared': sharedSrc,
+      react: path.join(vegaModules, 'react'),
+      'react-native': path.join(vegaModules, 'react-native'),
+    },
+    resolveRequest: (context, moduleName, platform) => {
+      // src/core is NodeNext TypeScript (imports './x.js' for x.ts): retry relative .js as extensionless.
+      if (
+        moduleName.startsWith('.') &&
+        moduleName.endsWith('.js') &&
+        context.originModulePath.startsWith(coreDir)
+      ) {
+        moduleName = moduleName.slice(0, -3);
+      }
+      const alias = ALIASES[moduleName];
+      if (alias) return context.resolveRequest(context, alias, platform);
+      for (const [from, to] of Object.entries(ALIASES)) {
+        if (moduleName.startsWith(from + '/')) {
+          return context.resolveRequest(context, to + moduleName.slice(from.length), platform);
+        }
+      }
+      return context.resolveRequest(context, moduleName, platform);
+    },
   },
 };
 

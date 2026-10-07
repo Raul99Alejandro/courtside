@@ -32,7 +32,8 @@
     "web": "yarn workspace @courtside/expo web",
     "shot": "node scripts/shot.mjs",
     "config": "node scripts/gen-config.mjs",
-    "test": "yarn workspace @courtside/shared test"
+    "test": "yarn workspace @courtside/shared test",
+    "check:vega": "yarn workspace @courtside/vega check"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
