@@ -46,42 +46,61 @@ export async function generateCard(m: Moment, converse: Converse, matchTitle: st
   return undefined;
 }
 
-async function main() {
-  const id = process.argv[2] ?? '3869685';
-  const data = JSON.parse(readFileSync(`build/moments-${id}.json`, 'utf8')) as { match: { title: string }; moments: Moment[] };
-  const stats: Stats = { calls: 0, retries: 0, judgeErrors: 0, inputTokens: 0, outputTokens: 0 };
-  const cards: Record<string, Card> = {};
+type Cards = Record<string, Card>;
+const cardPasses = (c: Card | undefined, m: Moment): boolean => !!c && LAYER_ORDER.every(l => !!c[l] && checkCard(c[l], l, m).length === 0);
+
+/** Existing cards that still pass today's deterministic checks (cards of moments no longer in the data are dropped). */
+export function keepGood(moments: Moment[], previous: Cards): Cards {
+  return Object.fromEntries(moments.filter(m => cardPasses(previous[m.id], m)).map(m => [m.id, previous[m.id]!]));
+}
+
+/** Moments to (re)generate: all of them with `all`, otherwise those without a card or whose card fails the current checks. */
+export function momentsToGenerate(moments: Moment[], previous: Cards, all: boolean): Moment[] {
+  if (all) return moments;
+  return moments.filter(m => !cardPasses(previous[m.id], m));
+}
+
+export interface RunResult { todo: number; generated: number; failed: string[]; merged: Cards; write: boolean; dropped: number }
+
+/** Generates the missing/failing cards, merges them over the still-good previous ones; the 90 % rule applies to the merged result. */
+export async function runGeneration(moments: Moment[], previous: Cards, converse: Converse, matchTitle: string | undefined, stats: Stats, all = false, workers = 4): Promise<RunResult> {
+  const todo = momentsToGenerate(moments, previous, all);
+  const fresh: Cards = {};
   const failed: string[] = [];
-  const t0 = Date.now();
   let next = 0;
   const worker = async () => {
-    while (next < data.moments.length) {
-      const m = data.moments[next++]!;
-      const card = await generateCard(m, realConverse, data.match.title, stats, why => failed.push(`${m.id} (${m.minute}' ${m.what}): ${why.join('; ')}`));
-      if (card) cards[m.id] = card;
+    while (next < todo.length) {
+      const m = todo[next++]!;
+      const card = await generateCard(m, converse, matchTitle, stats, why => failed.push(`${m.id} (${m.minute}' ${m.what}): ${why.join('; ')}`));
+      if (card) fresh[m.id] = card;
     }
   };
-  await Promise.all([worker(), worker(), worker(), worker()]);
-  const ordered = Object.fromEntries(data.moments.filter(m => cards[m.id]).map(m => [m.id, cards[m.id]]));
+  await Promise.all(Array.from({ length: workers }, worker));
+  const good = keepGood(moments, previous);
+  const merged = Object.fromEntries(moments.flatMap(m => { const c = fresh[m.id] ?? good[m.id]; return c ? [[m.id, c]] : []; }));
+  return { todo: todo.length, generated: Object.keys(fresh).length, failed, merged, write: Object.keys(merged).length >= 0.9 * moments.length, dropped: Object.keys(previous).length - Object.keys(good).length };
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  const all = args.includes('--all');
+  const id = args.find(a => !a.startsWith('--')) ?? '3869685';
+  const data = JSON.parse(readFileSync(`build/moments-${id}.json`, 'utf8')) as { match: { title: string }; moments: Moment[] };
   const file = `cards/cards-${id}.json`;
-  const okCount = Object.keys(ordered).length;
-  console.log(`ok/failed: ${okCount}/${failed.length} of ${data.moments.length}`);
-  if (okCount < 0.9 * data.moments.length) {
-    console.log('Fewer than 90% ok: the cards file was NOT written.');
+  const previous = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as Cards : {};
+  const stats: Stats = { calls: 0, retries: 0, judgeErrors: 0, inputTokens: 0, outputTokens: 0 };
+  const t0 = Date.now();
+  const r = await runGeneration(data.moments, previous, realConverse, data.match.title, stats, all);
+  console.log(`mode=${all ? 'all' : 'incremental'} moments=${data.moments.length} to-generate=${r.todo} generated=${r.generated} failed=${r.failed.length}`);
+  if (!r.write) {
+    console.log(`Fewer than 90% of moments have a card (${Object.keys(r.merged).length}/${data.moments.length}): the cards file was NOT written.`);
   } else {
-    // Never shrink the file: moments that failed this time keep their previous card; cards of moments no longer in the data are dropped.
-    const previous = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) as Record<string, Card> : {};
-    const ids = new Set(data.moments.map(m => m.id));
-    const moments = new Map(data.moments.map(m => [m.id, m]));
-    // Old cards that fail today's checks (for example a trailing word count) are dropped, not kept.
-    const stillGood = Object.entries(previous).filter(([k, c]) => ids.has(k) && LAYER_ORDER.every(l => c[l] && checkCard(c[l], l, moments.get(k)!).length === 0));
-    const merged = { ...Object.fromEntries(stillGood), ...ordered };
     mkdirSync('cards', { recursive: true });
-    writeFileSync(file, JSON.stringify(merged, null, 2) + '\n');
-    console.log(`wrote ${Object.keys(merged).length} cards to ${file} (${Object.keys(previous).length - stillGood.length} old cards dropped by the checks)`);
+    writeFileSync(file, JSON.stringify(r.merged, null, 2) + '\n');
+    console.log(`wrote ${Object.keys(r.merged).length} cards to ${file} (${r.dropped} old cards dropped by the checks or no longer in the data)`);
   }
   console.log(`calls=${stats.calls} retries=${stats.retries} judgeErrors=${stats.judgeErrors} tokens in/out=${stats.inputTokens}/${stats.outputTokens} time=${((Date.now() - t0) / 1000).toFixed(0)}s`);
-  for (const f of failed) console.log('FAILED', f);
+  for (const f of r.failed) console.log('FAILED', f);
 }
 
 if (process.argv[1]?.endsWith('generate.ts')) main().catch(e => { console.error(e); process.exit(1); });

@@ -37,3 +37,66 @@ Format per entry (hackathon friction-log fields): task attempted · steps taken 
 - Severity: major
 - Workaround: Amazon Nova 2 Lite (works, ~1.2 s)
 - Suggestion: show per-account availability in the catalog and the API, and a self-service request path for hackathon/credit accounts
+
+## F-5: HTTP API `ANY` route breaks the CORS preflight
+- Task: let the static site (CloudFront origin) call the HTTP API (another origin) from a browser
+- Steps: configured `corsPreflight` on the HTTP API; first routed everything with an `ANY` route; checked with curl and then with a real browser
+- Expected: API Gateway answers the OPTIONS preflight from the CORS settings and the POST goes through
+- Actual: an `ANY` route also matches OPTIONS, so the preflight reached our Lambda instead of API Gateway's CORS handling and the browser blocked the call; curl showed nothing wrong because curl sends no preflight
+- Severity: major
+- Workaround: declare GET and POST routes explicitly (comment in `infra/lib/stack.ts`); a browser check from the deployed site is part of the deploy routine
+- Suggestion: warn at deploy when `corsPreflight` is set together with an `ANY` or `OPTIONS`-matching route, and say so on the CORS documentation page
+
+## F-6: Lambda reserved concurrency fails on a new account (quota of 10)
+- Task: reserve concurrency for the Alexa Lambda so a flood cannot starve the other functions
+- Steps: set `reservedConcurrentExecutions` in CDK; deployed
+- Expected: reservation of a few executions works, or the problem shows before the deploy
+- Actual: a new account has a Lambda concurrency limit of 10 and Lambda keeps at least 10 unreserved, so no reservation is possible; CloudFormation failed mid-deploy, and the quota showed up only there
+- Severity: minor
+- Workaround: context value `alexaReservedConcurrency` set to "off" until the quota is raised; the stack test covers both settings
+- Suggestion: surface the unreserved-minimum rule and the account's current limit in CDK/CloudFormation validation (or `cdk diff`), and in the reserved-concurrency console field
+
+## F-7: Alexa custom-skill free-text slot rule only appears at deploy
+- Task: add a spoken question ("ask court side why was that offside") with a free-text slot
+- Steps: wrote the interaction model with an `AMAZON.SearchQuery` slot; validated locally; deployed the skill with the ASK CLI
+- Expected: invalid slot usage rejected while editing or by a local validate step
+- Actual: the rule that an intent may have only one free-text slot was reported only when the model was deployed
+- Severity: minor
+- Workaround: one intent with one `query` slot and carrier phrases; the model file is checked into `skill-package`
+- Suggestion: a validate command (or editor schema) in the ASK CLI that applies the same slot rules as the console build
+
+## F-8: Alexa simulator sends no personId
+- Task: test "who asked" (voice recognition) before owning a device with Voice ID set up
+- Steps: ran utterances in the simulator; inspected the request JSON
+- Expected: a way to set a test person in the simulator
+- Actual: `context.System.person` is never present in simulator requests, so recognised-voice behaviour cannot be exercised there at all
+- Severity: major for personalised skills
+- Workaround: the skill also accepts a spoken name ("this is Leo, why was that offside"); the `personId` path is tested with recorded requests in `test/alexa`; anyone else is Guest
+- Suggestion: let the simulator send a configurable `personId` (and a toggle for "recognised" vs "unrecognised")
+
+## F-9: Vega docs drift between versions
+- Task: pin versions for a Vega app (React Native line, library versions, manifest)
+- Steps: compared SDK 0.22, 0.23 and 0.24 pages, the release notes, the sample repo and the supported-libraries page
+- Expected: one current page per topic
+- Actual: the same topic exists under several versions with different paths; the supported-libraries page and the SDK release notes list different React Native lines (0.72 and 0.83); we had to choose a line from the sample's lockfile and the type packages
+- Severity: minor
+- Workaround: pinned the 0.72 line and recorded the choice in `tv/apps/vega/MAC-RUNBOOK.md`; real verification is pending 10 Oct
+- Suggestion: a `latest` alias per page and a single support matrix (SDK, React Native, library versions)
+
+## F-10: Windows shell quoting corrupted regex edits
+- Task: edit code containing regular expressions through shell one-liners
+- Steps: used `node -e` and heredocs from Git Bash on Windows
+- Expected: backslashes pass through unchanged
+- Actual: `\b` and other escapes were silently turned into control characters or dropped; three fix rounds were spent before the cause was clear
+- Severity: minor
+- Workaround: edit regex lines with an editor tool, not a shell string; write files instead of inlining them
+- Suggestion: none for AWS; noted because this is the setup a Windows developer for Vega/Fire TV will have
+
+## F-11: A cards-file generator should be incremental from day one
+- Task: regenerate explanation cards after the checks changed
+- Steps: ran the full generator against Bedrock each time
+- Expected: only changed cards re-run
+- Actual: every run re-ran about 40 moments with several model calls each (generation plus judge), so a small rule change cost a full run
+- Severity: minor
+- Workaround: the generator now regenerates only missing cards or cards failing today's checks, and `--all` forces a full run
+- Suggestion: Bedrock prompt caching and a batch mode would cut the cost of such offline runs further
