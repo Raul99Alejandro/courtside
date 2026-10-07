@@ -18,3 +18,13 @@ it('replaces an em dash instead of discarding the answer, and asks the model not
   expect(out).toBe('Offside, the attacker was ahead of the last defender.');
   expect(system).toContain('Never use the em dash');
 });
+it('says match for a basic viewer instead of discarding an answer that says game', async () => {
+  let system = '';
+  const out = await answerQuestion(input, { converse: async (_m, s) => { system = s; return { text: 'A goal kick restarts the game. Games stop for it.', modelId: 'f' }; } });
+  expect(out).toBe('A goal kick restarts the match. Matches stop for it.');
+  expect(system).toContain("say 'match'");
+});
+it('leaves the word game alone for other layers', async () => {
+  const out = await answerQuestion({ ...input, layer: 'intermediate' }, { converse: async () => ({ text: 'Game state matters here.', modelId: 'f' }) });
+  expect(out).toBe('Game state matters here.');
+});

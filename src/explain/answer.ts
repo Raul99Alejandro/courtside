@@ -14,11 +14,13 @@ export async function answerQuestion(
   input: { question: string; layer: Layer; moment?: Moment; viewerName: string },
   deps: { converse: Converse } = { converse: realConverse },
 ): Promise<string> {
-  const system = `You answer a soccer question spoken aloud on a TV to ${input.viewerName}. ${STYLE[input.layer]} Answer in at most 2 short sentences (under 45 words). Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. If the current moment is given, use only its facts for anything about it. Never use the em dash character; use commas or full stops.`;
+  const system = `You answer a soccer question spoken aloud on a TV to ${input.viewerName}. ${STYLE[input.layer]} Answer in at most 2 short sentences (under 45 words). Never mention coordinates. Never write World Cup or FIFA; say 'the 2022 final'. If the current moment is given, use only its facts for anything about it. Never use the em dash character; use commas or full stops.${input.layer === 'basic' ? " Never write 'game'; say 'match'." : ''}`;
   const user = (input.moment ? `Current moment: ${JSON.stringify(momentFacts(input.moment))}\n\n` : '') + `Question: ${input.question}`;
   try {
     const r = await deps.converse(LIVE_MODELS, system, user, 200);
-    const text = r.text.replace(/\s*—\s*/g, ', ').trim();
+    let text = r.text.replace(/\s*—\s*/g, ', ').trim();
+    // The card check rejects "game" in basic lines and the model says it often: fix the word instead of discarding the answer.
+    if (input.layer === 'basic') text = text.replace(/\bgame(s?)\b/gi, (w, s: string) => (w[0] === 'G' ? 'M' : 'm') + (s ? 'atches' : 'atch'));
     return text && checkCard(text, input.layer, {}).filter(p => !p.startsWith('too long')).length === 0 ? text : FALLBACK_ANSWER;
   } catch {
     return FALLBACK_ANSWER;
