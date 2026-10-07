@@ -54,5 +54,25 @@ for (const to of Object.values(aliases)) {
   }
 }
 
+// 4. nothing may resolve outside apps/vega/node_modules (a stray hoisted or expo copy would hide a wrong alias)
+const nm = path.join(vegaDir, 'node_modules') + path.sep;
+const allowed = (name) => name.startsWith('@types/') || name.startsWith('@amazon-devices/') || declared.has(name);
+for (const f of program.getSourceFiles()) {
+  if (!f.fileName.includes('node_modules')) continue;
+  const norm = path.normalize(f.fileName);
+  if (!norm.startsWith(nm)) {
+    failures++;
+    console.error(`resolved outside apps/vega/node_modules: ${path.relative(vegaDir, norm)}`);
+    continue;
+  }
+  const rest = norm.slice(nm.length).split(path.sep);
+  const name = rest[0].startsWith('@') ? rest[0] + '/' + rest[1] : rest[0];
+  if (!allowed(name) && !f.isDeclarationFile) { failures++; console.error(`unexpected package ${name}`); }
+  else if (!allowed(name) && !/^(@types|typescript|csstype|metro|@react-native|react-native|@babel|@jest)/.test(name)) {
+    // declaration files of transitive deps (e.g. csstype) are fine; log anything else
+    console.warn(`note: transitive declaration from ${name}`);
+  }
+}
+
 console.log(`vega check: ${own.length} own files, ${bare.size} bare packages, ${failures} problem(s)`);
 process.exit(failures ? 1 : 0);

@@ -65,7 +65,7 @@ yarn install
 
 This pulls `@amazon-devices/*` from the public npm registry (no login needed; checked on 2026-10-06). Peer-dependency warnings are normal (qrcode-svg's doc asks for `legacy-peer-deps` under npm; Yarn does not enforce peers).
 
-Success: finishes with "Done"; `ls tv/apps/vega/node_modules/@amazon-devices` lists kepler, react-native-svg, react-navigation__native and so on.
+Success: finishes with "Done"; `ls apps/vega/node_modules/@amazon-devices` lists kepler, react-native-svg, react-navigation__native and so on.
 
 Quick sanity before building (same checks as on Windows):
 

@@ -23,7 +23,7 @@ const config = {
     unstable_enableSymlinks: true,
     // *.kepler.ts (remote keys) win over the plain file; the tv root has no hoisted deps
     // (nmHoistingLimits: workspaces), so shared and core resolve bare imports from here.
-    platforms: ['kepler', 'native', 'ios', 'android'],
+    platforms: ['kepler', 'native'],
     nodeModulesPaths: [vegaModules],
     extraNodeModules: {
       '@courtside/core': coreDir,

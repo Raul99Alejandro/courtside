@@ -10,7 +10,11 @@ const fs = require('fs');
   const size = code ? code.length : fs.statSync(out).size;
   console.log(`vega bundle ok: ${(size / 1024).toFixed(0)} KB`);
   const has = (s) => (code || fs.readFileSync(out, 'utf8')).includes(s);
+  let missing = 0;
   for (const probe of ['RemoteControlManager.kepler', '@amazon-devices/react-navigation__native', '@amazon-devices/react-native-svg']) {
-    console.log(`  contains ${probe}: ${has(probe)}`);
+    const ok = has(probe);
+    console.log(`  contains ${probe}: ${ok}`);
+    if (!ok) missing++;
   }
+  if (missing) { console.error(`${missing} probe(s) missing`); process.exit(1); }
 })().catch((e) => { console.error(e); process.exit(1); });
