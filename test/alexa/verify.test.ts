@@ -2,7 +2,7 @@ import { createSign, generateKeyPairSync } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { createRequestVerifier, validChainUrl } from '../../src/alexa/verify.js';
+import { createRequestVerifier, MAX_NEGATIVE_ENTRIES, validChainUrl } from '../../src/alexa/verify.js';
 
 const fx = (n: string) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url), 'utf8');
 const URL_OK = 'https://s3.amazonaws.com/echo.api/echo-api-cert.pem';
@@ -71,5 +71,17 @@ describe('Alexa request verification', () => {
     const body = bodyOf(intent('AskWhyIntent', 'nova'));
     const other = createSign('RSA-SHA256').update(body).sign(generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey, 'base64');
     expect(await verifier()({ signaturecertchainurl: URL_OK, 'signature-256': other }, Buffer.from(body))).toBe(false);
+  });
+  it('keeps at most a bounded number of remembered failures', async () => {
+    const body = bodyOf(intent('AskWhyIntent', 'nova'));
+    let fetches = 0;
+    const v = createRequestVerifier({ fetchChain: async () => { fetches++; return fx('bad.pem'); }, now: () => NOW, roots: [fx('ca.pem')] });
+    const url = (i: number) => `https://s3.amazonaws.com/echo.api/c${i}.pem`;
+    for (let i = 0; i < MAX_NEGATIVE_ENTRIES + 5; i++) await v({ ...signed(body), signaturecertchainurl: url(i) }, Buffer.from(body));
+    expect(fetches).toBe(MAX_NEGATIVE_ENTRIES + 5);
+    await v({ ...signed(body), signaturecertchainurl: url(MAX_NEGATIVE_ENTRIES + 4) }, Buffer.from(body)); // newest is still remembered
+    expect(fetches).toBe(MAX_NEGATIVE_ENTRIES + 5);
+    await v({ ...signed(body), signaturecertchainurl: url(0) }, Buffer.from(body)); // oldest was evicted, so it is fetched again
+    expect(fetches).toBe(MAX_NEGATIVE_ENTRIES + 6);
   });
 });

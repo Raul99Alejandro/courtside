@@ -34,6 +34,17 @@ export function validChain(pem: string, now: Date, roots: readonly string[] = ro
 }
 
 const NEGATIVE_MS = 60_000;
+export const MAX_NEGATIVE_ENTRIES = 500;
+
+/** Remembers a failure, never holding more than MAX_NEGATIVE_ENTRIES: expired ones go first, then the oldest. */
+function remember(failed: Map<string, number>, url: string, until: number, now: number) {
+  failed.delete(url);
+  if (failed.size >= MAX_NEGATIVE_ENTRIES) {
+    for (const [k, v] of failed) if (v <= now) failed.delete(k);
+    while (failed.size >= MAX_NEGATIVE_ENTRIES) failed.delete(failed.keys().next().value!);
+  }
+  failed.set(url, until);
+}
 
 /** Full Alexa request check: certificate URL, chain, signature over the raw body bytes, and a fresh timestamp. Never throws. */
 export function createRequestVerifier(deps: VerifyDeps) {
@@ -54,12 +65,12 @@ export function createRequestVerifier(deps: VerifyDeps) {
           const pem = await deps.fetchChain(url, signal);
           const certs = splitPem(pem).map(p => new X509Certificate(p));
           const leaf = validChain(pem, now, deps.roots);
-          if (!leaf) { failed.set(url, t + NEGATIVE_MS); return false; }
+          if (!leaf) { remember(failed, url, t + NEGATIVE_MS, t); return false; }
           // The cached chain is good only until the first certificate in it expires.
           entry = { leaf, until: Math.min(...certs.map(c => Date.parse(c.validTo))) };
           cache.set(url, entry);
         } catch (err) {
-          if (!signal?.aborted) failed.set(url, t + NEGATIVE_MS); // a deadline is not the certificate's fault
+          if (!signal?.aborted) remember(failed, url, t + NEGATIVE_MS, t); // a deadline is not the certificate's fault
           throw err;
         }
       }

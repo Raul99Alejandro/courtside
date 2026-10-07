@@ -66,6 +66,7 @@ describe('Courtside stack', () => {
     expect(json).not.toMatch(/dynamodb:(Scan|Batch|\*)|secretsmanager|transcribe|s3:/);
     const alexa = Object.entries(t.findResources('AWS::Lambda::Function')).find(([id]) => id.startsWith('Alexa'))![1];
     expect(alexa.Properties.Timeout).toBe(8);
+    expect(alexa.Properties.ReservedConcurrentExecutions).toBe(5);
     expect(alexa.Properties.Environment.Variables).toHaveProperty('WS_ENDPOINT');
     const urls = Object.values(t.findResources('AWS::Lambda::Url', { Properties: { AuthType: 'NONE' } }));
     expect(urls).toHaveLength(1);

@@ -99,6 +99,11 @@ export class CourtsideStack extends Stack {
     alexaFn.addToRolePolicy(new iam.PolicyStatement({
       actions: ['dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem', 'dynamodb:Query'], resources: [table.tableArn],
     }));
+    // The URL is public: a flood of unsigned requests may use at most 5 concurrent executions (and so a bounded Bedrock/table bill).
+    // Lambda keeps at least 10 unreserved, so an account whose limit is still the new-account 10 cannot reserve any:
+    // cdk.json sets alexaReservedConcurrency to "off" for such an account until the quota is raised.
+    const reserve = this.node.tryGetContext('alexaReservedConcurrency') as number | string | undefined;
+    if (reserve !== 'off') (alexaFn.node.defaultChild as lambda.CfnFunction).reservedConcurrentExecutions = typeof reserve === 'number' ? reserve : 5;
     alexaFn.addToRolePolicy(bedrockInvoke());
     alexaFn.addToRolePolicy(manageConnections());
     const alexaUrl = alexaFn.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.NONE });

@@ -7,6 +7,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 
 const TV = process.env.TV_BASE ?? 'http://localhost:8082/';
 const QUESTION = process.argv[2] ?? 'why was that offside';
+const LABEL = process.env.EXPECT_LABEL ?? 'Guest'; // Leo when the question names him, e.g. "this is Leo why was that offside"
 const root = new URL('../../', import.meta.url);
 const API = JSON.parse(readFileSync(new URL('cdk-outputs.json', root), 'utf8')).Courtside.HttpApiUrl.replace(/\/$/, '');
 const SKILL = JSON.parse(readFileSync(new URL('cdk.json', root), 'utf8')).context.alexaSkillId;
@@ -56,14 +57,14 @@ const q = await simulate(`ask court side ${QUESTION}`);
 console.log('simulator, question:', JSON.stringify(q));
 check(q.status === 'SUCCESSFUL' && /^It's on your TV/.test(q.speech ?? ''), 'Alexa speaks the one-line acknowledgement');
 
-await tv.waitForSelector('text=Guest asked', { timeout: 30000 }).then(
-  () => check(true, 'the TV shows the answer labelled Guest'),
-  () => check(false, 'the TV shows the answer labelled Guest'),
+await tv.waitForSelector(`text=${LABEL} asked`, { timeout: 30000 }).then(
+  () => check(true, 'the TV shows the answer labelled ' + LABEL),
+  () => check(false, 'the TV shows the answer labelled ' + LABEL),
 );
 await tv.waitForTimeout(800);
 await tv.screenshot({ path: 'shots/alexa-answer.png' });
 console.log('on TV:', (await tv.locator('body').innerText()).split('\n').slice(0, 12).join(' | '));
 const recent = (await api('GET', `/households/${code}`)).data.recentAnswers ?? [];
-check(recent.some((a) => a.label === 'Guest' && a.layer === 'basic'), 'recentAnswers has the Guest answer at the basic layer', JSON.stringify(recent.map((a) => ({ label: a.label, layer: a.layer }))));
+check(recent.some((a) => a.label === LABEL && a.layer === 'basic'), `recentAnswers has the ${LABEL} answer at the basic layer`, JSON.stringify(recent.map((a) => ({ label: a.label, layer: a.layer }))));
 await browser.close();
 process.exit(failed ? 1 : 0);

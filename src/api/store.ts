@@ -52,6 +52,9 @@ export interface Store {
   countHousehold(code: string): Promise<number>;
   /** Counts one question for the whole service (this hour and today, UTC); call only after the household passed its cap. */
   countGlobal(): Promise<{ hour: number; day: number }>;
+  /** Wrong household codes tried this hour, service-wide (a per-code or per-IP count is not possible here). */
+  failedJoins(): Promise<number>;
+  addFailedJoin(): Promise<number>;
 }
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -205,6 +208,14 @@ export function dynamoStore(table = process.env.TABLE ?? '', doc = DynamoDBDocum
     },
     async countHousehold(code) {
       return bump(hh(code), `RATE#${Math.floor(now() / 3600)}`, (Math.floor(now() / 3600) + 2) * 3600);
+    },
+    async failedJoins() {
+      const r = await doc.send(new GetCommand({ TableName: table, Key: { pk: `GLOBAL_JOIN#${Math.floor(now() / 3600)}`, sk: 'COUNT' } }));
+      return Number(r.Item?.n ?? 0);
+    },
+    async addFailedJoin() {
+      const hour = Math.floor(now() / 3600);
+      return bump(`GLOBAL_JOIN#${hour}`, 'COUNT', (hour + 2) * 3600);
     },
     async countGlobal() {
       const hour = Math.floor(now() / 3600);

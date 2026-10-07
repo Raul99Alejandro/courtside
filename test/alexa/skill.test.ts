@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { newViewer, type Viewer } from '../../src/core/index.js';
 import { FALLBACK_ANSWER } from '../../src/explain/answer.js';
-import { GUEST, handleSkill, NOT_LINKED_TEXT, spokenCode, TOO_SLOW_TEXT, type SkillDeps } from '../../src/alexa/skill.js';
+import { GUEST, handleSkill, LINK_FAILED_TEXT, MAX_LINK_FAILURES, NOT_LINKED_TEXT, spokenCode, TOO_SLOW_TEXT, type SkillDeps } from '../../src/alexa/skill.js';
 import type { AlexaStore } from '../../src/alexa/store.js';
 import { createRequestVerifier } from '../../src/alexa/verify.js';
 import { MAX_GLOBAL_QUESTIONS_PER_HOUR, MAX_QUESTIONS_PER_HOUR } from '../../src/api/http.js';
@@ -33,6 +33,7 @@ function fakeStore(viewers: Viewer[] = [newViewer('Leo', 'beginner', 1), newView
   const answers: RecentAnswer[] = [];
   const sessions = new Map<string, Session>();
   const removed: string[] = [];
+  const fails = new Map<string, number>();
   const counts = { household: 0, hour: 0, day: 0 };
   let latest: { sessionId: string } | undefined;
   const store: AlexaStore = {
@@ -55,8 +56,11 @@ function fakeStore(viewers: Viewer[] = [newViewer('Leo', 'beginner', 1), newView
     async linkedHousehold(u) { return links.get(u); },
     async linkVoice(c, p, n) { voices.set(`${c}#${p}`, n); },
     async voiceViewer(c, p) { return voices.get(`${c}#${p}`); },
+    async failedJoins() { return 0; }, async addFailedJoin() { return 1; },
+    async linkFailures(u) { return fails.get(u) ?? 0; },
+    async addLinkFailure(u) { fails.set(u, (fails.get(u) ?? 0) + 1); return fails.get(u)!; },
   };
-  return { store, links, voices, answers, sessions, removed, counts, setLatest: (id: string, present: string[]) => { latest = { sessionId: id }; sessions.set(`${CODE}#${id}`, { present }); } };
+  return { store, fails, links, voices, answers, sessions, removed, counts, setLatest: (id: string, present: string[]) => { latest = { sessionId: id }; sessions.set(`${CODE}#${id}`, { present }); } };
 }
 
 describe('Courtside Alexa skill', () => {
@@ -85,8 +89,56 @@ describe('Courtside Alexa skill', () => {
     expect(speech(ok)).toMatch(/^Linked/);
     expect(f.links.get(USER)).toBe(CODE);
     const bad = await run(bodyOf(intent('LinkHouseholdIntent', { code: 'z z z z z z' }), { userId: 'other' }));
-    expect(speech(bad)).toMatch(/couldn't find/);
+    expect(speech(bad)).toBe(LINK_FAILED_TEXT);
     expect(f.links.has('other')).toBe(false);
+  });
+
+  it('counts failed links per Alexa account, locks out after five with the same message, and never looks the code up once locked', async () => {
+    let lookups = 0;
+    const store = { ...f.store, getViewers: async (c: string) => { lookups++; return f.store.getViewers(c); } };
+    for (let i = 0; i < MAX_LINK_FAILURES; i++) expect(speech(await run(bodyOf(intent('LinkHouseholdIntent', { code: 'z z z z z z' })), deps({ store })))).toBe(LINK_FAILED_TEXT);
+    expect(f.fails.get(USER)).toBe(MAX_LINK_FAILURES);
+    lookups = 0;
+    // The right code is refused now, in the same words as a wrong one.
+    expect(speech(await run(bodyOf(intent('LinkHouseholdIntent', { code: 'a b c two three four' })), deps({ store })))).toBe(LINK_FAILED_TEXT);
+    expect(lookups).toBe(0);
+    expect(f.links.has(USER)).toBe(false);
+    // Another account is not affected.
+    expect(speech(await run(bodyOf(intent('LinkHouseholdIntent', { code: 'ABC234' }), { userId: 'fresh' })))).toMatch(/^Linked/);
+  });
+
+  it('rejects codes with O, 0, I or 1 before any lookup, as an ordinary failure', async () => {
+    let lookups = 0;
+    const store = { ...f.store, getViewers: async (c: string) => { lookups++; return f.store.getViewers(c); } };
+    for (const code of ['ABC0OI', 'oh one i o l two', 'ABC23', 'ABC2345']) expect(speech(await run(bodyOf(intent('LinkHouseholdIntent', { code })), deps({ store }))), code).toBe(LINK_FAILED_TEXT);
+    expect(lookups).toBe(0);
+    expect(f.fails.get(USER)).toBe(4);
+  });
+
+  it('answers a spoken name at that viewer layer and label, and personId still wins', async () => {
+    f.links.set(USER, CODE);
+    await run(bodyOf(intent('AskAsIntent', { query: 'leo, offside' })));
+    expect(asked[0]).toEqual({ question: 'offside', layer: 'basic', viewerName: 'Leo' });
+    expect(pushed[0]!.payload).toMatchObject({ label: 'Leo', layer: 'basic' });
+    expect(speech(await run(bodyOf(intent('AskAsIntent', { query: 'Raul, offside' }))))).toBe("It's on your TV, Raul.");
+    expect(asked[1]).toMatchObject({ layer: 'tactical', viewerName: 'Raul' });
+    f.voices.set(`${CODE}#p1`, 'Raul');
+    await run(bodyOf(intent('AskAsIntent', { query: 'Leo, offside' }), { personId: 'p1' }));
+    expect(asked[2]).toMatchObject({ layer: 'tactical', viewerName: 'Raul' });
+    await run(bodyOf(intent('AskAsIntent', { query: 'Nobody offside' })));
+    expect(asked[3]).toEqual({ question: 'Nobody offside', layer: 'basic', viewerName: GUEST });
+    expect(speech(await run(bodyOf(intent('AskAsIntent', { query: 'Leo' }))))).toMatch(/^Say:/);
+  });
+
+  it('refreshes the household link when a question succeeds, not when it fails', async () => {
+    f.links.set(USER, CODE);
+    let refreshed = 0;
+    const store = { ...f.store, linkHousehold: async (u: string, c: string) => { refreshed++; return f.store.linkHousehold(u, c); } };
+    await run(bodyOf(intent('AskCourtsideIntent', { query: 'offside' })), deps({ store }));
+    expect(refreshed).toBe(1);
+    answerFn = async () => FALLBACK_ANSWER;
+    await run(bodyOf(intent('AskCourtsideIntent', { query: 'offside' })), deps({ store }));
+    expect(refreshed).toBe(1);
   });
 
   it('turns spoken codes into household codes', () => {

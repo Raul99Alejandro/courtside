@@ -30,6 +30,7 @@ export const MAX_QUESTIONS_PER_HOUR = 30;
 export const MAX_GLOBAL_QUESTIONS_PER_HOUR = 300; // cost cap for the whole service
 export const MAX_GLOBAL_QUESTIONS_PER_DAY = 600;
 export const MAX_PROFILES_PER_HOUSEHOLD = 10;
+export const MAX_FAILED_JOINS_PER_HOUR = 200; // wrong household codes, whole service
 const LEVELS: Level[] = ['beginner', 'fan', 'expert'];
 const CONCEPTS: Concept[] = ['penalty kick', 'offside', 'yellow card', 'red card', 'assist', 'shot on goal', 'shot', 'goal', 'extra time', 'penalty shoot-out', 'save'];
 const MAX_MOMENT_ID_CHARS = 64;
@@ -260,8 +261,10 @@ export function makeHttpHandler(deps: Deps) {
     }
 
     const code = normaliseCode(parts[1] ?? '');
+    // Guessing codes is the only way in without one: after too many wrong codes in an hour, every code lookup waits.
+    if (await store.failedJoins().catch(() => 0) >= MAX_FAILED_JOINS_PER_HOUR) return fail(429, 'Too many wrong codes - try again later');
     const viewers = await loadViewers(code);
-    if (!viewers) return fail(404, 'Unknown code');
+    if (!viewers) { await store.addFailedJoin().catch(() => undefined); return fail(404, 'Unknown code'); }
 
     if (parts.length === 2 && method === 'GET') {
       await touch(code);

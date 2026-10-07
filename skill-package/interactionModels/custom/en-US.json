@@ -3,13 +3,30 @@
     "languageModel": {
       "invocationName": "court side",
       "intents": [
-        { "name": "AMAZON.HelpIntent", "samples": [] },
-        { "name": "AMAZON.StopIntent", "samples": [] },
-        { "name": "AMAZON.CancelIntent", "samples": [] },
-        { "name": "AMAZON.FallbackIntent", "samples": [] },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        },
         {
           "name": "AskCourtsideIntent",
-          "slots": [{ "name": "query", "type": "AMAZON.SearchQuery" }],
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
           "samples": [
             "why was that {query}",
             "why was it {query}",
@@ -22,7 +39,12 @@
         },
         {
           "name": "LinkHouseholdIntent",
-          "slots": [{ "name": "code", "type": "AMAZON.SearchQuery" }],
+          "slots": [
+            {
+              "name": "code",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
           "samples": [
             "link household {code}",
             "link my household {code}",
@@ -31,12 +53,31 @@
         },
         {
           "name": "LinkVoiceIntent",
-          "slots": [{ "name": "name", "type": "AMAZON.FirstName" }],
+          "slots": [
+            {
+              "name": "name",
+              "type": "AMAZON.FirstName"
+            }
+          ],
           "samples": [
             "I am {name}",
             "I'm {name}",
             "this is {name}",
             "my name is {name}"
+          ]
+        },
+        {
+          "name": "AskAsIntent",
+          "slots": [
+            {
+              "name": "query",
+              "type": "AMAZON.SearchQuery"
+            }
+          ],
+          "samples": [
+            "for {query}",
+            "as {query}",
+            "this is {query}"
           ]
         }
       ],

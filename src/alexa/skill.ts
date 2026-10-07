@@ -3,6 +3,7 @@ import { answerLayerForQuestion, lowestLayer, normaliseCode, routeQuestion, type
 import { FALLBACK_ANSWER } from '../explain/answer.js';
 import { MAX_GLOBAL_QUESTIONS_PER_DAY, MAX_GLOBAL_QUESTIONS_PER_HOUR, MAX_QUESTIONS_PER_HOUR, MAX_QUESTION_CHARS } from '../api/http.js';
 import type { Push } from '../api/push.js';
+import { CODE_ALPHABET } from '../api/store.js';
 import type { AlexaStore } from './store.js';
 
 export type SkillDeps = {
@@ -21,7 +22,10 @@ const NAME = 'Courtside';
 export const GUEST = 'Guest';
 export const TOO_SLOW_TEXT = 'That is taking too long right now. Please try again.';
 export const NOT_LINKED_TEXT = 'First link your household. Say: link household, then the six character code from your TV.';
-const HELP = 'Say: link household, and the code on your TV. Then ask, for example: why was that offside.';
+export const LINK_FAILED_TEXT = "I couldn't link that household. Check the code on your TV and try again later.";
+export const MAX_LINK_FAILURES = 5; // per Alexa account per hour
+const VALID_CODE = new RegExp(`^[${CODE_ALPHABET}]{6}$`);
+const HELP ='Say: link household, and the code on your TV. Then ask, for example: why was that offside.';
 
 const reply = (speech: string, opts: { end?: boolean; card?: string; reprompt?: string } = {}) => ({
   version: '1.0',
@@ -84,10 +88,15 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
 
   if (name === 'LinkHouseholdIntent') {
     if (!userId) return denied;
-    const code = spokenCode(slot('code') ?? '');
-    if (!code) return say('Which household code? Say: link household, and the six character code.', { end: false, reprompt: 'Say the six character code from your TV.' });
+    const heard = slot('code');
+    if (!heard) return say('Which household code? Say: link household, and the six character code.', { end: false, reprompt: 'Say the six character code from your TV.' });
+    const code = spokenCode(heard);
     return withDeadline(async () => {
-      if (!(await deps.store.getViewers(code))) return say("I couldn't find that household code. Check the code on your TV and try again.", { end: false, reprompt: 'Say the six character code from your TV.' });
+      // One message for a wrong code and for a lockout, so the reply never tells a guesser which one happened.
+      const cannot = say(LINK_FAILED_TEXT, { end: false, reprompt: 'Say the six character code from your TV.' });
+      if (await deps.store.linkFailures(userId) >= MAX_LINK_FAILURES) return cannot;
+      // Codes never contain O, 0, I or 1, so such a code cannot exist: no table read, but it still counts as an attempt.
+      if (!VALID_CODE.test(code) || !(await deps.store.getViewers(code))) { await deps.store.addLinkFailure(userId); return cannot; }
       await deps.store.linkHousehold(userId, code);
       return say('Linked. Now ask me a soccer question, and the answer will show on your TV.', { end: false, reprompt: 'Ask, for example: why was that offside.' });
     });
@@ -108,10 +117,11 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
     });
   }
 
-  if (name === 'AskCourtsideIntent') {
+  // AskAsIntent: "for Leo, why was that offside". Alexa allows one free-text slot per utterance, so the name arrives as the first word of the query.
+  if (name === 'AskCourtsideIntent' || name === 'AskAsIntent') {
     if (!userId) return denied;
-    const question = slot('query')?.slice(0, MAX_QUESTION_CHARS);
-    if (!question) return say(HELP, { end: false, reprompt: HELP });
+    const heard = slot('query')?.slice(0, MAX_QUESTION_CHARS);
+    if (!heard) return say(HELP, { end: false, reprompt: HELP });
     return withDeadline(async () => {
       const { store } = deps;
       const code = await store.linkedHousehold(userId);
@@ -119,8 +129,17 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
       if (!code || !viewers) return say(NOT_LINKED_TEXT, { end: false, reprompt: NOT_LINKED_TEXT });
 
       // R-06: a known speaker is answered at their own layer and labelled with their name; anyone else is Guest at the lowest layer present (R-08-b).
-      const spoken = personId ? await store.voiceViewer(code, personId) : undefined;
-      const speaker: Viewer | undefined = spoken ? viewers.find(v => v.name.toLowerCase() === spoken.toLowerCase()) : undefined;
+      // A recognised voice (personId) wins; otherwise a name said in the request ("this is Leo, ...") if it is in the household.
+      const find = (n?: string) => n ? viewers.find(v => v.name.toLowerCase() === n.toLowerCase()) : undefined;
+      let question = heard;
+      let said: Viewer | undefined;
+      if (name === 'AskAsIntent') {
+        const [first = '', ...rest] = heard.split(/[\s,]+/).filter(Boolean);
+        said = find(first);
+        if (said) question = rest.join(' ');
+        if (!question) return say(HELP, { end: false, reprompt: HELP });
+      }
+      const speaker: Viewer | undefined = find(personId ? await store.voiceViewer(code, personId) : undefined) ?? said;
       const route = routeQuestion({ viewer: speaker });
       const label = route.ok ? route.label : GUEST;
       const layer: Layer = route.ok ? route.layer : await guestLayer(store, code, viewers);
@@ -140,6 +159,7 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
       if (ids.length) {
         try { await Promise.all((await deps.push(ids, { type: 'answer', ...item })).map(id => store.removeConnection(id))); } catch { /* recentAnswers still has it */ }
       }
+      await store.linkHousehold(userId, code).catch(() => undefined); // a household in use keeps its link
       const line = label === GUEST ? "It's on your TV." : `It's on your TV, ${label}.`;
       return say(line, { card: `${label} asked: ${question}\n\n${text}` });
     });
