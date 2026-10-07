@@ -56,7 +56,7 @@ function fakeStore(viewers: Viewer[] = [newViewer('Leo', 'beginner', 1), newView
     async linkedHousehold(u) { return links.get(u); },
     async linkVoice(c, p, n) { voices.set(`${c}#${p}`, n); },
     async voiceViewer(c, p) { return voices.get(`${c}#${p}`); },
-    async failedJoins() { return 0; }, async addFailedJoin() { return 1; },
+    async failedJoins() { return { source: 0, global: 0 }; }, async addFailedJoin() {},
     async linkFailures(u) { return fails.get(u) ?? 0; },
     async addLinkFailure(u) { fails.set(u, (fails.get(u) ?? 0) + 1); return fails.get(u)!; },
   };

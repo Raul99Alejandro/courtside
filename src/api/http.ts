@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { addViewer, byCreation, layerFor, markGotIt, newViewer, nextOrder, normaliseCode, pickViewer, recordAsked, recordBasicShown, routeQuestion, undoPromotion, type Concept, type Layer, type Level, type Viewer } from '../core/index.js';
 import { answerQuestion, FALLBACK_ANSWER } from '../explain/answer.js';
 import { postToConnections, type Push } from './push.js';
@@ -9,7 +9,7 @@ export interface HttpEvent {
   rawPath: string;
   body?: string | null;
   isBase64Encoded?: boolean;
-  requestContext: { http: { method: string } };
+  requestContext: { http: { method: string; sourceIp?: string } };
 }
 export interface HttpResult { statusCode: number; headers: Record<string, string>; body: string }
 
@@ -30,7 +30,8 @@ export const MAX_QUESTIONS_PER_HOUR = 30;
 export const MAX_GLOBAL_QUESTIONS_PER_HOUR = 300; // cost cap for the whole service
 export const MAX_GLOBAL_QUESTIONS_PER_DAY = 600;
 export const MAX_PROFILES_PER_HOUSEHOLD = 10;
-export const MAX_FAILED_JOINS_PER_HOUR = 200; // wrong household codes, whole service
+export const MAX_FAILED_JOINS_PER_IP_PER_HOUR = 20; // wrong household codes from one address: only that address is blocked
+export const MAX_FAILED_JOINS_PER_HOUR = 5000; // backstop for the whole service (a botnet)
 const LEVELS: Level[] = ['beginner', 'fan', 'expert'];
 const CONCEPTS: Concept[] = ['penalty kick', 'offside', 'yellow card', 'red card', 'assist', 'shot on goal', 'shot', 'goal', 'extra time', 'penalty shoot-out', 'save'];
 const MAX_MOMENT_ID_CHARS = 64;
@@ -41,6 +42,9 @@ const badSessionId = (v: unknown) => v !== undefined && v !== null && v !== '' &
 
 const reply = (statusCode: number, data: unknown): HttpResult => ({ statusCode, headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
 const fail = (statusCode: number, message: string) => reply(statusCode, { message });
+
+/** Opaque per-address key: sha256 of the table name (a salt that is not in the code) and the IP. */
+const sourceKey = (ip = 'unknown') => createHash('sha256').update(`${process.env.TABLE ?? ''}|${ip}`).digest('hex').slice(0, 32);
 
 export function makeHttpHandler(deps: Deps) {
   const { store } = deps;
@@ -261,10 +265,12 @@ export function makeHttpHandler(deps: Deps) {
     }
 
     const code = normaliseCode(parts[1] ?? '');
-    // Guessing codes is the only way in without one: after too many wrong codes in an hour, every code lookup waits.
-    if (await store.failedJoins().catch(() => 0) >= MAX_FAILED_JOINS_PER_HOUR) return fail(429, 'Too many wrong codes - try again later');
+    // Guessing codes is the only way in without one. The address is stored only as a salted hash, for an hour.
+    const source = sourceKey(event.requestContext.http.sourceIp);
+    const failures = await store.failedJoins(source).catch(() => ({ source: 0, global: 0 }));
+    if (failures.source >= MAX_FAILED_JOINS_PER_IP_PER_HOUR || failures.global >= MAX_FAILED_JOINS_PER_HOUR) return fail(429, 'Too many wrong codes - try again later');
     const viewers = await loadViewers(code);
-    if (!viewers) { await store.addFailedJoin().catch(() => undefined); return fail(404, 'Unknown code'); }
+    if (!viewers) { await store.addFailedJoin(source).catch(() => undefined); return fail(404, 'Unknown code'); }
 
     if (parts.length === 2 && method === 'GET') {
       await touch(code);

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { newViewer, PROMOTE_AT, type Viewer } from '../src/core/index.js';
-import { makeHttpHandler, MAX_FAILED_JOINS_PER_HOUR, type HttpEvent } from '../src/api/http.js';
+import { makeHttpHandler, MAX_FAILED_JOINS_PER_HOUR, MAX_FAILED_JOINS_PER_IP_PER_HOUR, type HttpEvent } from '../src/api/http.js';
 import type { LatestSession, RecentAnswer, Session, Store } from '../src/api/store.js';
 import { wav } from './wav.js';
 
@@ -19,7 +19,7 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
   const answers = new Map<string, RecentAnswer[]>();
   const versions = new Map<string, number>();
   const failPuts = { n: 0 };
-  const joinFails = { n: 0 };
+  const joinFails = { bySource: new Map<string, number>(), global: 0 };
   const touches: string[] = [];
   const touchFail = { on: false };
   const store: Store = {
@@ -56,8 +56,8 @@ function fakeStore(rateStart = 0, globalStart = 0, dayStart = 0) {
     async connections(code) { return conns.get(code) ?? []; },
     async countHousehold() { return ++rate; },
     async countGlobal() { return { hour: ++globalRate, day: ++dayRate }; },
-    async failedJoins() { return joinFails.n; },
-    async addFailedJoin() { return ++joinFails.n; },
+    async failedJoins(s) { return { source: joinFails.bySource.get(s) ?? 0, global: joinFails.global }; },
+    async addFailedJoin(s) { joinFails.bySource.set(s, (joinFails.bySource.get(s) ?? 0) + 1); joinFails.global++; },
   };
   return { store, joinFails, households, conns, sessions, latest, answers, failPuts, removed, touches, touchFail, counters: () => ({ rate, globalRate, dayRate }) };
 }
@@ -98,18 +98,27 @@ describe('http handler', () => {
     expect(json(r)).toEqual({ message: 'Unknown code' });
   });
 
-  it('counts wrong codes for the whole service and answers 429 once there have been too many, even for a right code', async () => {
-    expect(f.joinFails.n).toBe(0);
-    await handler()(ev('GET', '/households/ZZZZZZ'));
-    await handler()(ev('GET', '/households/ABC234')); // a right code is not counted
-    expect(f.joinFails.n).toBe(1);
-    f.joinFails.n = MAX_FAILED_JOINS_PER_HOUR;
+  const from = (ip: string, method: string, path: string): HttpEvent => ({ rawPath: path, requestContext: { http: { method, sourceIp: ip } } });
+
+  it('blocks one address after too many wrong codes, for that address only; a right code from another address always works', async () => {
+    for (let i = 0; i < MAX_FAILED_JOINS_PER_IP_PER_HOUR; i++) expect((await handler()(from('1.1.1.1', 'GET', '/households/ZZZZZZ'))).statusCode).toBe(404);
+    await handler()(from('1.1.1.1', 'GET', '/households/ABC234')); // a right code is not counted
+    expect([...f.joinFails.bySource.values()]).toEqual([MAX_FAILED_JOINS_PER_IP_PER_HOUR]);
     for (const code of ['ZZZZZZ', 'ABC234']) {
-      const r = await handler()(ev('GET', `/households/${code}`));
+      const r = await handler()(from('1.1.1.1', 'GET', `/households/${code}`));
       expect(r.statusCode, code).toBe(429);
       expect(json(r).message).toBe('Too many wrong codes - try again later');
     }
-    expect((await handler()(ev('POST', '/households'))).statusCode).toBe(200); // creating a household is not a guess
+    expect((await handler()(from('2.2.2.2', 'GET', '/households/ABC234'))).statusCode).toBe(200);
+    expect((await handler()(from('2.2.2.2', 'GET', '/households/ZZZZZZ'))).statusCode).toBe(404);
+    expect((await handler()(from('1.1.1.1', 'POST', '/households'))).statusCode).toBe(200); // creating a household is not a guess
+  });
+
+  it('keeps no raw address, and the global backstop blocks everyone only at a very high count', async () => {
+    await handler()(from('3.3.3.3', 'GET', '/households/ZZZZZZ'));
+    expect([...f.joinFails.bySource.keys()].join()).toMatch(/^[0-9a-f]{32}$/);
+    f.joinFails.global = MAX_FAILED_JOINS_PER_HOUR;
+    expect((await handler()(from('4.4.4.4', 'GET', '/households/ABC234'))).statusCode).toBe(429);
   });
 
   it('resolves a lower-case code with spaces', async () => {
