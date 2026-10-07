@@ -13,7 +13,7 @@
     "data:build": "tsx src/data/build.ts",
     "cards:generate": "tsx src/explain/generate.ts",
     "web:dev": "vite web",
-    "web:build": "vite build web --outDir ../dist-web --emptyOutDir",
+    "web:build": "node scripts/build-web.mjs",
     "cdk": "cdk --app \"npx tsx infra/bin/app.ts\""
   },
   "keywords": [],

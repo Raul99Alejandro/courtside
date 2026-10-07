@@ -133,11 +133,31 @@ export class CourtsideStack extends Stack {
         referrerPolicy: { referrerPolicy: cloudfront.HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
       },
     });
+    // The TV web app (Expo export) lives under /tv/. A viewer-request function on that path only serves /tv/index.html for the
+    // folder and for deep links (no file extension), so /config.json, /phone.html and real 404s elsewhere are untouched.
+    const tvRouter = new cloudfront.Function(this, 'TvRouter', {
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      comment: 'SPA fallback for /tv/* deep links',
+      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+  var request = event.request;
+  var last = request.uri.split('/').pop();
+  if (last.indexOf('.') === -1) request.uri = '/tv/index.html';
+  return request;
+}`),
+    });
+    const siteOrigin = origins.S3BucketOrigin.withOriginAccessControl(bucket);
     const distribution = new cloudfront.Distribution(this, 'Cdn', {
       defaultRootObject: 'index.html',
       defaultBehavior: {
-        origin: origins.S3BucketOrigin.withOriginAccessControl(bucket),
+        origin: siteOrigin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS, responseHeadersPolicy: headers,
+      },
+      additionalBehaviors: {
+        '/tv/*': {
+          origin: siteOrigin,
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS, responseHeadersPolicy: headers,
+          functionAssociations: [{ function: tvRouter, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
+        },
       },
       priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
     });

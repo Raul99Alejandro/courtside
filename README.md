@@ -4,7 +4,7 @@ Courtside is a Fire TV app that explains each soccer moment to everyone in the l
 
 ## 60-second judge path
 
-1. Open the live site, https://d3igz6igrmkgis.cloudfront.net/, and choose **TV**. It shows a six-character household code and a QR code. (The full TV app, with the pitch, cards and remote-control navigation, runs from `tv/` with `yarn web`, see below; the demo video shows it on a TV.)
+1. Open the hosted TV app, https://d3igz6igrmkgis.cloudfront.net/tv/ (the full Fire TV app built for the web: pitch, cards, remote-control navigation; use the arrow keys and Enter on a laptop). It creates a household and shows a six-character code and a QR code. The landing page, https://d3igz6igrmkgis.cloudfront.net/, links to both the TV app and the phone page. (The same app runs from `tv/` with `yarn web`, see below; the demo video shows it on a TV.)
 2. On your phone, scan the QR code (or open **Phone** and type the code). Add yourself as a viewer and pick a level: beginner, fan or expert.
 3. Tap the microphone and ask, for example, "why was that offside?". The clip is transcribed in our AWS account, answered at your level, and shown on the TV with your name. Typing works as a fallback.
 4. Alexa (simulator, no device needed): open the Alexa developer console, skill **court side**, tab Test, locale en-US, development stage. Say or type "open court side", then "link household" and read the six characters from the TV once. Then "ask court side why was that offside". The simulator has no voice profiles, so say "this is Leo, why was that offside" to name the viewer; anyone else is Guest and is answered at the easiest level in the room.
@@ -112,7 +112,7 @@ Vega OS builds (`tv/apps/vega`) need macOS or Ubuntu with the Vega SDK; see `tv/
 ## Deploy
 
 ```
-npm run web:build
+npm run web:build   # landing + phone page (vite) and the TV app web export under /tv/ (needs `cd tv && yarn install` once)
 npm run cdk -- deploy -c ownerEmail=<email> --outputs-file cdk-outputs.json
 node scripts/smoke.mjs
 ```

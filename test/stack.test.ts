@@ -87,6 +87,17 @@ describe('Courtside stack', () => {
     t.resourceCountIs('AWS::CloudFront::OriginAccessControl', 1);
   });
 
+  it('serves the TV web app under /tv/ with a deep-link fallback only on that path', () => {
+    t.resourceCountIs('AWS::CloudFront::Function', 1);
+    const dist = Object.values(t.findResources('AWS::CloudFront::Distribution'))[0]!.Properties.DistributionConfig;
+    expect(dist.CacheBehaviors).toHaveLength(1);
+    expect(dist.CacheBehaviors[0].PathPattern).toBe('/tv/*');
+    expect(dist.CacheBehaviors[0].FunctionAssociations[0].EventType).toBe('viewer-request');
+    expect(dist.DefaultCacheBehavior.FunctionAssociations).toBeUndefined();
+    expect(dist.CustomErrorResponses).toBeUndefined();
+    expect(JSON.stringify(dist.CacheBehaviors[0])).toContain('SecurityHeaders');
+  });
+
   it('has an HTTP API and a WebSocket API', () => {
     t.hasResourceProperties('AWS::ApiGatewayV2::Api', { ProtocolType: 'HTTP' });
     t.hasResourceProperties('AWS::ApiGatewayV2::Api', { ProtocolType: 'WEBSOCKET' });
