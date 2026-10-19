@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { useLive } from './index';
+import { popTo } from '../navigation/popTo';
 
-type Nav = { navigate: (name: string) => void; popTo: (name: string) => void; getState: () => { index: number; routes: { name: string }[] } | undefined };
+type Nav = { navigate: (name: string) => void; popTo?: (name: string) => void; getState: () => { index: number; routes: { name: string }[] } | undefined };
 
 /**
  * Keeps the screens in step with the live session: a phone's answer takes over the screen, and a session that
@@ -22,7 +23,7 @@ export function LiveBridge() {
   }, [waiting, state.answers[0]?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!state.sessionId && here() === 'Replay') navigation.popTo('Watching');
+    if (!state.sessionId && here() === 'Replay') popTo(navigation, 'Watching');
   }, [state.sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

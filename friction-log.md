@@ -154,3 +154,12 @@ Format per entry (hackathon friction-log fields): task attempted · steps taken 
 - Severity: minor
 - Workaround: runbook updated (`docs/vega-mac.md`)
 - Suggestion: document `inputd-cli` and the manifest auto-edit on the run-apps page
+
+## F-18: Vega's React Navigation "7.0.x" ports are v6 underneath
+- Task: return from a live answer to the replay on Vega
+- Steps: answer screen calls `navigation.popTo('Replay')`; reproduced on the VVD, mapped the red-box frame through the build's source map
+- Expected: `@amazon-devices/react-navigation__*` 7.0.x behave like React Navigation 7
+- Actual: "undefined is not a function" in Answer.tsx; the packages declare `temporary-alias-for-package` core 6.4.10 / native-stack 6.9.15, so v7 APIs such as `popTo` are missing while the version number says 7
+- Severity: major (the TV app crashed after every phone question)
+- Workaround: `navigation/popTo.ts` uses `popTo` when present, else `navigate` (v6 pops back to a screen already in the stack)
+- Suggestion: version the ports after the upstream major they wrap, or list the missing v7 APIs on the library page

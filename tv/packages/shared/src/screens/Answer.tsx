@@ -15,6 +15,7 @@ import { isDemo } from './screen';
 import Pitch from '../components/Pitch';
 import ThemedButton from '../components/ThemedButton';
 import { Scarf, ScarfStripe } from '../components/Scarf';
+import { popTo } from '../navigation/popTo';
 
 const SAFE_H = safeZones.titleSafe.horizontal;
 const SAFE_V = safeZones.titleSafe.vertical;
@@ -81,7 +82,7 @@ const useModel = isDemo() ? useDemoModel : useLiveModel;
 
 /** A question asked from a phone, answered on the TV at that viewer's layer (R-06). */
 export default function Answer() {
-  const navigation = useNavigation<{ navigate: (n: string) => void; popTo: (n: string) => void; addListener: (e: 'beforeRemove', cb: () => void) => () => void }>();
+  const navigation = useNavigation<{ navigate: (n: string) => void; popTo?: (n: string) => void; addListener: (e: 'beforeRemove', cb: () => void) => () => void }>();
   const focused = useIsFocused(); // only the screen on top listens to the D-pad: a hidden Start button must not fire again
   const model = useModel();
   const hasSession = !!useLiveSession();
@@ -98,7 +99,7 @@ export default function Answer() {
   useEffect(() => (demo ? undefined : navigation.addListener('beforeRemove', () => liveController().dismissAnswer(id))), [demo, navigation, id]);
   // Nothing left to show: back to the replay, or to Who's watching when the session is over.
   useEffect(() => {
-    if (!demo && !model) navigation.popTo(hasSession ? 'Replay' : 'Watching');
+    if (!demo && !model) popTo(navigation, hasSession ? 'Replay' : 'Watching');
   }, [demo, model, hasSession, navigation]);
 
   const c = theme.color;
