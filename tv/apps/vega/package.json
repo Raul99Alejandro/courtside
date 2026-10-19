@@ -42,7 +42,7 @@
     "react": "18.2.0",
     "react-native": "0.72.0",
     "react-native-pixel-perfect": "^1.0.2",
-    "react-tv-space-navigation": "6.0.0-beta1"
+    "react-tv-space-navigation": "5.2.0"
   },
   "devDependencies": {
     "@amazon-devices/kepler-cli-platform": "^0",

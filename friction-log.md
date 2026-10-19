@@ -100,3 +100,57 @@ Format per entry (hackathon friction-log fields): task attempted · steps taken 
 - Severity: minor
 - Workaround: the generator now regenerates only missing cards or cards failing today's checks, and `--all` forces a full run
 - Suggestion: Bedrock prompt caching and a batch mode would cut the cost of such offline runs further
+
+## F-12: Vega CLI build silently drops the app's Metro resolveRequest
+- Task: build the Vega app with `react-native build-kepler` (Vega SDK 0.24, RN 0.72 line)
+- Steps: aliases for community package names in `metro.config.js` `resolver.resolveRequest`; `check:vega` (direct Metro) passed; ran the Vega build
+- Expected: the build uses the project's Metro resolver
+- Actual: `Unable to resolve module @react-navigation/native`; the RN CLI 11 `loadMetroConfig` merges its kepler platform `resolveRequest` over the project's, with no warning
+- Severity: blocker
+- Workaround: a local Babel plugin rewrites import sources before resolution (`tv/apps/vega/babel-plugin-aliases.js`)
+- Suggestion: chain to the project's resolveRequest instead of replacing it, or warn when one is overridden; document the alias pattern for shared monorepo code
+
+## F-13: A render error on Vega shows up only as "AppNotResponding"
+- Task: launch the first build in the Vega Virtual Device
+- Steps: `vega run-app`, watched the VVD and `loggingctl`
+- Expected: a red box or a JS error line in the device log
+- Actual: back on the launcher after 16 s; log said `Transition timed out ... Creating surfaces` and `crashed with signal 3`, no JS error; only an error boundary around the root revealed the error
+- Severity: major
+- Workaround: temporary entry with an error boundary and a global error handler
+- Suggestion: log uncaught render errors to `loggingctl` and name them in the ANR crash reason
+
+## F-14: react-tv-space-navigation 6 beta does not work on Vega's React 18
+- Task: run the shared TV screens (spatial navigation) on Vega
+- Steps: bisected with a minimal entry, then grepped node_modules for React 19's element symbol
+- Expected: the Vega-recommended focus library runs on the Vega RN 0.72 line
+- Actual: 6.0.0-beta1 inlines React 19's JSX runtime; React 18.2 rejects its elements ("Objects are not valid as a React child")
+- Severity: blocker
+- Workaround: Vega app pins 5.2.0 (same API surface we use); Expo keeps 6.0.0-beta1
+- Suggestion: a compatibility note on the Vega focus-management page naming the version range per React line
+
+## F-15: VVD screenshot tools fail and take the device shell down
+- Task: screenshot the app in the VVD from the CLI (runbook step 7)
+- Steps: `gwsi-tool-screenshooter /tmp/x.png`, then `screenshooter /tmp/x.png`
+- Expected: a PNG on the device to pull
+- Actual: first hung and left 0 bytes; second failed with "creating a buffer file ... Permission denied"; then `com.amazon.dev.shell.service` was gone and the VVD exited
+- Severity: major
+- Workaround: macOS `screencapture -l<windowId>` of the VVD window (Screen Recording permission), Cmd+Shift+5 for video
+- Suggestion: a supported `vega virtual-device screenshot` / `record` command
+
+## F-16: Fresh Mac setup has more prerequisites than the install page lists
+- Task: install the Vega SDK on a new Apple Silicon Mac (M6, macOS 27)
+- Steps: Homebrew, Node 20, SDK utilities, Rosetta, `get_vvm.sh`
+- Expected: one script that checks or installs prerequisites
+- Actual: no Homebrew or Node on the machine; two password prompts (Homebrew, Rosetta); installer stops on two interactive questions. The VVD itself booted first try on the M6, newer than the documented M1 to M4
+- Severity: minor
+- Workaround: install them in order; Enter for installer defaults
+- Suggestion: a prerequisite check in `get_vvm.sh` and a non-interactive flag; list newer chips as supported
+
+## F-17: Small runbook drifts against SDK 0.24.12112
+- Task: follow the runbook written before any Vega build had run
+- Steps: build, run, logs, key input
+- Expected: names and commands as in the docs
+- Actual: vpkg is `vega_aarch64.vpkg`; `build-kepler` forwards to `build-vega`; the build edits `manifest.toml` (`needs.module` per library) and writes `buildinfo.json`; `loggingctl` has no `--no-pager`; key input via `inputd-cli button_press KEY_*` is not in the run-apps doc
+- Severity: minor
+- Workaround: runbook updated (`docs/vega-mac.md`)
+- Suggestion: document `inputd-cli` and the manifest auto-edit on the run-apps page

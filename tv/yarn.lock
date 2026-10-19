@@ -1749,7 +1749,7 @@ __metadata:
     react: "npm:18.2.0"
     react-native: "npm:0.72.0"
     react-native-pixel-perfect: "npm:^1.0.2"
-    react-tv-space-navigation: "npm:6.0.0-beta1"
+    react-tv-space-navigation: "npm:5.2.0"
     typescript: "npm:~5.7.0"
   languageName: unknown
   linkType: soft
@@ -13340,6 +13340,16 @@ __metadata:
   peerDependencies:
     react: ^19.1.0
   checksum: 10c0/34ed4a37ba8b0beb96c048de6ff28574f018a18dd1042c24f8f46142d48eb5b27f82ff7c2823d082932fd3983c5a3529ab8cc8f15191d4306df0082f9f84678f
+  languageName: node
+  linkType: hard
+
+"react-tv-space-navigation@npm:5.2.0":
+  version: 5.2.0
+  resolution: "react-tv-space-navigation@npm:5.2.0"
+  dependencies:
+    "@bam.tech/lrud": "npm:^8.0.2"
+    lodash.uniqueid: "npm:^4.0.1"
+  checksum: 10c0/4e87477fd5cafee6abb9af0f07afb178606e37918d19b2e873c70055115e25be03ec410cb83dd2151dd55b591cd3d2912fed287542d4db733e964f16b6dc9801
   languageName: node
   linkType: hard
 

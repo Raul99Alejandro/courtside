@@ -82,7 +82,7 @@ yarn build:vega:debug        # = react-native build-kepler --build-type Debug in
 ls apps/vega/build/*/*.vpkg
 ```
 
-Success: a `.vpkg` named for your CPU, for example `apps/vega/build/aarch64-debug/CourtsideVega_aarch64.vpkg`. The architecture must match the Mac (aarch64 on Apple Silicon).
+Success: a `.vpkg` named for your CPU: `apps/vega/build/aarch64-debug/vega_aarch64.vpkg` on Apple Silicon (checked 19 Oct on an M6). The build also adds `[[needs.module]]` lines to `manifest.toml`; commit them.
 
 ## 6. Run in the VVD
 
@@ -99,13 +99,16 @@ JS reloads while developing: `yarn dev:vega` in `tv/` starts Metro (`react-nativ
 
 ## 7. Screenshot, recording, logs
 
-```bash
-vega exec vda shell gwsi-tool-screenshooter /tmp/courtside.png
-vega exec vda pull /tmp/courtside.png ~/Desktop/courtside.png      # copy off the VVD (see `vega exec vda --help` if pull differs)
-vega exec vda shell loggingctl log -o short-precise -f              # live device log; Ctrl+C to stop
-```
+Checked 19 Oct (see `docs/vega-mac.md`): the on-device screenshot tools (`gwsi-tool-screenshooter`, `screenshooter`) fail on the VVD and can take the VVD down. Capture the window from macOS instead:
 
-The docs list no video command for VVD: record the VVD window with macOS Screenshot (Cmd+Shift+5, "Record Selected Portion"). Success: PNG opens at 1920x1080-ish with the app visible.
+- Screenshot: Cmd+Shift+4, then Space, click the VVD window (or `screencapture -x -o -l<windowId> ~/Desktop/courtside-vega.png`; needs Screen Recording permission).
+- Video: Cmd+Shift+5, "Record Selected Window", click the VVD window; stop from the menu bar.
+
+```bash
+vega exec vda shell loggingctl log -o short-precise -f              # live device log; Ctrl+C to stop
+vega exec vda shell inputd-cli button_press KEY_RIGHT              # remote keys: KEY_LEFT/UP/DOWN/ENTER/BACK
+vega device launch-app -a com.courtside.tv.vega.main -d VirtualDevice   # relaunch without reinstalling
+```
 
 Stop: `vega virtual-device stop`.
 
