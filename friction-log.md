@@ -163,3 +163,12 @@ Format per entry (hackathon friction-log fields): task attempted · steps taken 
 - Severity: major (the TV app crashed after every phone question)
 - Workaround: `navigation/popTo.ts` uses `popTo` when present, else `navigate` (v6 pops back to a screen already in the stack)
 - Suggestion: version the ports after the upstream major they wrap, or list the missing v7 APIs on the library page
+
+## F-19: Vega's react-native-svg leaves removed elements on screen
+- Task: step through match moments on the replay pitch (SVG) with the remote
+- Steps: pressed Right repeatedly on the Vega Virtual Device
+- Expected: each moment draws only its own player names and arrows
+- Actual: names and arrows from every visited moment piled up on the pitch; conditionally rendered `SvgText`/`Path` children were not removed on update (web and Fire OS draw correctly)
+- Severity: major (the core screen became unreadable after a few moments)
+- Workaround: `<Svg key={moment.id}>` in `Pitch.tsx`, so each moment mounts a fresh drawing
+- Suggestion: fix child removal in the `@amazon-devices/react-native-svg` port, or list it as a known issue

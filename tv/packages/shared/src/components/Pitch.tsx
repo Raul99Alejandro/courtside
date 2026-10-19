@@ -102,7 +102,9 @@ export default function Pitch({ moment, width, mine, theirs, actorName = '' }: P
   }
 
   return (
-    <Svg width={width} height={height} viewBox={`${-PAD} ${-PAD} ${vbW} ${vbH}`}>
+    // keyed by moment: the Vega react-native-svg port leaves removed children (old names, arrows) on screen,
+    // so each moment gets a fresh drawing instead of an in-place update
+    <Svg key={moment.id} width={width} height={height} viewBox={`${-PAD} ${-PAD} ${vbW} ${vbH}`}>
       <G>
         <Rect x={-PAD} y={-PAD} width={vbW} height={vbH} fill={p.grass} />
         {Array.from({ length: 12 }, (_, i) =>
