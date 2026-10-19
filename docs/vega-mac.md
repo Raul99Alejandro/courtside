@@ -78,3 +78,14 @@ Could be two log sinks or two `TVEventHandler` listeners. The "Who's watching" s
 viewers has a single focusable, so a double move is not visible there. Check with two viewers
 joined: if focus jumps two cards per press, make `RemoteControlManager.kepler.ts` ignore the
 duplicate (same eventType within a few ms) or find the second registration.
+
+## 7. App bugs the VVD found while recording the demo (fixed)
+
+- **Crash after every phone question.** `navigation.popTo` is undefined: the `@amazon-devices/react-navigation__*`
+  "7.0.x" ports are aliases of React Navigation 6 (`temporary-alias-for-package`). Found by printing the error stack
+  in short chunks (the device log truncates long lines) and mapping `bundle:line:col` through
+  `build/debugging/Debug/srcmap/*.map` with `source-map`. Fix: `navigation/popTo.ts` (F-18).
+- **Pitch names and arrows pile up between moments.** The Vega `react-native-svg` port does not remove children on
+  update. Fix: `<Svg key={moment.id}>` in `Pitch.tsx` (F-19).
+- The VVD itself restarted once on its own during a take ("Vega Virtual Device is ready" splash); relaunching the
+  app was enough.
