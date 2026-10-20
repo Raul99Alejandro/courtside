@@ -29,7 +29,12 @@ export interface AnswerItem {
   layer: Layer;
   question: string;
   answer: string;
+  /** 'alexa' when asked through the Alexa skill; otherwise it came from a phone. */
+  via?: 'alexa';
 }
+
+/** Only the one known source is kept, so an unexpected value is treated as the phone. */
+const viaOf = (v: unknown): 'alexa' | undefined => (v === 'alexa' ? 'alexa' : undefined);
 
 export type { Promotion };
 
@@ -175,7 +180,7 @@ export function createController(deps: ControllerDeps) {
   function catchUp(recent: RecentAnswer[] | undefined) {
     const fresh = (recent ?? []).filter(a => typeof a.id === 'string' && markSeen(a.id));
     if (!fresh.length) return;
-    const items = fresh.map<AnswerItem>(a => ({ id: ++answerId, key: a.id, label: a.label, layer: a.layer ?? 'basic', question: a.question, answer: a.answer }));
+    const items = fresh.map<AnswerItem>(a => ({ id: ++answerId, key: a.id, label: a.label, layer: a.layer ?? 'basic', question: a.question, answer: a.answer, via: viaOf(a.via) }));
     set({ answers: [...state.answers, ...items] });
   }
 
@@ -290,11 +295,11 @@ export function createController(deps: ControllerDeps) {
 
   function onMessage(m: { type?: string; [k: string]: unknown }) {
     if (m.type === 'answer') {
-      const { label, layer, question, answer, id } = m as Record<string, unknown>;
+      const { label, layer, question, answer, id, via } = m as Record<string, unknown>;
       if (typeof label !== 'string' || typeof question !== 'string' || typeof answer !== 'string') return;
       const key = typeof id === 'string' ? id : undefined;
       if (key && !markSeen(key)) return; // already shown (it came with a catch-up)
-      const item: AnswerItem = { id: ++answerId, key, label, layer: (typeof layer === 'string' ? layer : 'basic') as Layer, question, answer };
+      const item: AnswerItem = { id: ++answerId, key, label, layer: (typeof layer === 'string' ? layer : 'basic') as Layer, question, answer, via: viaOf(via) };
       set({ answers: [...state.answers, item] });
     } else if (m.type === 'viewers' && Array.isArray(m.viewers)) {
       applyViewers(m.viewers as Viewer[], ++reqCounter, validPromotions(m.promotions));

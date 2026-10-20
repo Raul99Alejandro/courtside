@@ -30,6 +30,8 @@ interface AnswerModel {
   layer: Layer;
   question: string;
   answer: string;
+  /** Where the question came from, shown next to the name. */
+  source: string;
   moment: Moment;
   caption: string;
   waiting: number;
@@ -50,6 +52,7 @@ function useDemoModel(): AnswerModel | undefined {
     layer: answerLayerForQuestion(viewer, 'offside'),
     question: q.text,
     answer: q.answer,
+    source: 'from their phone',
     moment,
     caption: `Minute ${moment.minute}: ${who}'s pass is ruled offside`,
     waiting: 0,
@@ -71,6 +74,7 @@ function useLiveModel(): AnswerModel | undefined {
     layer: cur.layer,
     question: cur.question,
     answer: cur.answer,
+    source: cur.via === 'alexa' ? 'via Alexa' : 'from their phone',
     moment,
     caption: `Minute ${moment.minute}: ${momentTitle(moment, CARDS[moment.id])}`,
     waiting: state.answers.length - 1,
@@ -118,7 +122,7 @@ export default function Answer() {
             <View style={styles.asked}>
               <Scarf index={model.index} width={px(52)} />
               <Text style={{ fontFamily: font.title, fontSize: px(52), color: c.text }}>{model.name} asked</Text>
-              <Text style={{ fontFamily: font.body, fontSize: px(30), color: c.textDim }}>from their phone</Text>
+              <Text style={{ fontFamily: font.body, fontSize: px(30), color: c.textDim }}>{model.source}</Text>
             </View>
             <Text style={{ fontFamily: font.title, fontSize: px(qSize), lineHeight: px(qSize === 104 ? 104 : qSize + 6), color: c.text, marginBottom: px(40) }}>
               {model.question}

@@ -551,6 +551,17 @@ describe('fix round 1: reconnect, viewers and missed answers', () => {
     expect(live.getState().answers).toHaveLength(1);
   });
 
+  it('an answer asked through Alexa keeps its source, by push and by catch-up', async () => {
+    const { live, client, handlers } = setup();
+    await live.boot();
+    handlers().onMessage({ type: 'answer', id: 'a1', label: 'Maya', layer: 'intermediate', question: 'one', answer: 'A: one', via: 'alexa' });
+    handlers().onMessage({ type: 'answer', id: 'a2', label: 'Leo', layer: 'basic', question: 'two', answer: 'A: two', via: 'fax' });
+    client.getHousehold.mockResolvedValue(ok({ viewers: [leo], recentAnswers: [{ ...rec('a3', 'three'), via: 'alexa' }] }));
+    handlers().onOpen();
+    await settle();
+    expect(live.getState().answers.map(a => a.via)).toEqual(['alexa', undefined, 'alexa']);
+  });
+
   it('answers the server still holds when the TV starts are not replayed', async () => {
     const { live } = setup({ getHousehold: vi.fn(async () => ok({ viewers: [leo], recentAnswers: [rec('a1', 'old')] })) });
     await live.boot();

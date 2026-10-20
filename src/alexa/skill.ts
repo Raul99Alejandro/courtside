@@ -154,7 +154,7 @@ export async function handleSkill(deps: SkillDeps, headers: Record<string, strin
       try { const moment = await latestMoment(store, code); text = await deps.answer({ question, layer, viewerName: label, deadlineAt: deps.deadlineAt, ...(moment && { moment }) }); } catch { text = FALLBACK_ANSWER; }
       if (!text || text === FALLBACK_ANSWER) return say(FALLBACK_ANSWER, { card: FALLBACK_ANSWER });
 
-      const item = { id: randomUUID(), label, layer, question, answer: text, at: Date.now() };
+      const item = { id: randomUUID(), label, layer, question, answer: text, at: Date.now(), via: 'alexa' as const };
       await store.addAnswer(code, item).catch(() => undefined); // best effort: a TV that missed the push catches up from this
       const ids = await store.connections(code);
       if (ids.length) {

@@ -14,7 +14,7 @@ export const SESSION_TTL_S = 24 * 3600;
 export interface Session { present: string[]; momentId?: string; concepts?: string[]; /** Highest moment sequence number the TV has sent; an older one never replaces the current moment. */ seq?: number }
 
 /** An answer pushed to the TV, kept for an hour so a TV whose socket dropped can catch up. */
-export interface RecentAnswer { id: string; label: string; layer: string; question: string; answer: string; /** epoch ms */ at: number }
+export interface RecentAnswer { id: string; label: string; layer: string; question: string; answer: string; /** epoch ms */ at: number; /** Set when the question came through the Alexa skill; absent means the phone. */ via?: 'alexa' }
 export const RECENT_ANSWERS = 5;
 export const ANSWER_TTL_S = 3600;
 

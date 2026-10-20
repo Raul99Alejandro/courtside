@@ -24,6 +24,8 @@ export interface RecentAnswer {
   question: string;
   answer: string;
   at: number;
+  /** Set when the question came through the Alexa skill; absent means the phone. */
+  via?: 'alexa';
 }
 
 export interface HouseholdReply {

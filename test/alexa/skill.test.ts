@@ -169,10 +169,10 @@ describe('Courtside Alexa skill', () => {
     expect(speech(r)).toBe("It's on your TV, Raul.");
     expect(pushed).toHaveLength(1);
     expect(pushed[0]!.ids).toEqual(['c1', 'c2']);
-    expect(pushed[0]!.payload).toMatchObject({ type: 'answer', label: 'Raul', layer: 'tactical', question: 'offside', answer: 'Offside means a player is ahead of the defenders.' });
+    expect(pushed[0]!.payload).toMatchObject({ type: 'answer', label: 'Raul', layer: 'tactical', question: 'offside', answer: 'Offside means a player is ahead of the defenders.', via: 'alexa' });
     expect(typeof pushed[0]!.payload.id).toBe('string');
     expect(typeof pushed[0]!.payload.at).toBe('number');
-    expect(f.answers).toEqual([{ id: pushed[0]!.payload.id, label: 'Raul', layer: 'tactical', question: 'offside', answer: 'Offside means a player is ahead of the defenders.', at: pushed[0]!.payload.at }]);
+    expect(f.answers).toEqual([{ id: pushed[0]!.payload.id, label: 'Raul', layer: 'tactical', question: 'offside', answer: 'Offside means a player is ahead of the defenders.', at: pushed[0]!.payload.at, via: 'alexa' }]);
   });
 
   it('a beginner speaker gets the basic layer', async () => {
