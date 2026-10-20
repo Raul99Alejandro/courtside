@@ -172,3 +172,12 @@ Format per entry (hackathon friction-log fields): task attempted · steps taken 
 - Severity: major (the core screen became unreadable after a few moments)
 - Workaround: `<Svg key={moment.id}>` in `Pitch.tsx`, so each moment mounts a fresh drawing
 - Suggestion: fix child removal in the `@amazon-devices/react-native-svg` port, or list it as a known issue
+
+## F-20: The Vega app loses its live link after a long idle and does not recover
+- Task: record the Alexa scene with the app left open on the replay for about 3 hours in the Vega Virtual Device
+- Steps: Alexa skill and a direct API question pushed answers to household 2YNW4C; watched the VVD recording
+- Expected: the TV shows each pushed answer (WebSocket push, or the household poll as a fallback)
+- Actual: the backend logged the answers, but the TV stayed on the replay; relaunching the app restored the link at once
+- Severity: major (a TV left on overnight would miss every question)
+- Workaround: relaunch the app before a session; the demo's Alexa take was recorded right after a relaunch
+- Suggestion (ours): reconnect the socket and refresh the household on resume or on a timer on Vega; (Amazon) document WebSocket lifetime and keep-alive behaviour for long-running Vega apps
