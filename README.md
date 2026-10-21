@@ -2,12 +2,14 @@
 
 Courtside is a Fire TV app that explains each soccer moment to everyone in the living room at their own level. It replays a real match from open play-by-play data on a 2D pitch; every moment gets a card with up to three layers (basic, intermediate, tactical), and each viewer sees the layer for their level. It remembers which ideas each person has already understood, so a beginner who has learned "offside" is not told again and is moved up when ready. Anyone can ask a question by voice from their phone or, through an Alexa skill (tested in the simulator), from the room; the answer appears on the TV, labelled with who asked and written at their level. One shared React Native codebase targets Vega OS, Fire OS and the web. Built for the Amazon "Build, Ship, Shape" hackathon (Fire TV track).
 
+**Demo video (2:20):** https://youtu.be/vB66eTqTEc0, shown running on the Vega Virtual Device (Vega SDK 0.24), with a question through Alexa answered on the TV.
+
 ## 60-second judge path
 
-1. Open the hosted TV app, https://d3igz6igrmkgis.cloudfront.net/tv/ (the full Fire TV app built for the web: pitch, cards, remote-control navigation; use the arrow keys and Enter on a laptop). It creates a household and shows a six-character code and a QR code. The landing page, https://d3igz6igrmkgis.cloudfront.net/, links to both the TV app and the phone page. (The same app runs from `tv/` with `yarn web`, see below; the demo video shows it on a TV.)
+1. Open the hosted TV app, https://d3igz6igrmkgis.cloudfront.net/tv/ (the full Fire TV app built for the web: pitch, cards, remote-control navigation; use the arrow keys and Enter on a laptop). It creates a household and shows a six-character code and a QR code. The landing page, https://d3igz6igrmkgis.cloudfront.net/, links to both the TV app and the phone page. (The same app runs from `tv/` with `yarn web`, see below; the demo video shows the Vega build in the Vega Virtual Device.)
 2. On your phone, scan the QR code (or open **Phone** and type the code). Add yourself as a viewer and pick a level: beginner, fan or expert.
 3. Tap the microphone and ask, for example, "why was that offside?". The clip is transcribed in our AWS account, answered at your level, and shown on the TV with your name. Typing works as a fallback.
-4. Alexa (simulator, no device needed): open the Alexa developer console, skill **court side**, tab Test, locale en-US, development stage. Say or type "open court side", then "link household" and read the six characters from the TV once. Then "ask court side why was that offside". The simulator has no voice profiles, so say "this is Leo, why was that offside" to name the viewer; anyone else is Guest and is answered at the easiest level in the room.
+4. Alexa (simulator, no device needed): open the Alexa developer console, skill **court side**, tab Test, locale en-US, development stage. Say or type "open court side", then "link household" and read the six characters from the TV once. Then, in the same conversation, "why was that offside". The simulator has no voice profiles, so say "this is Leo, why was that offside" to name the viewer (the one-shot "ask court side this is Leo, ..." loses the name); anyone else is Guest and is answered at the easiest level in the room. The TV labels the answer "via Alexa".
 
 ## How the AI is kept honest
 
